@@ -51,20 +51,20 @@ def get_client() -> JiraClient:
 
 
 @mcp.tool()
-def list_jira_projects() -> list[dict[str, Any]]:
+def list_jira_projects() -> dict[str, Any]:
     """List all accessible Jira projects.
 
     Returns:
-        List of projects with key, name, description, type, and lead
+        Dictionary with 'projects' key containing list of all projects
     """
     try:
         client = get_client()
         projects = list_projects(client)
-        return projects
+        return {"projects": projects, "count": len(projects)}
     except Exception as e:
         # Return error information for debugging
         import os
-        return [{
+        return {
             "error": str(e),
             "type": type(e).__name__,
             "env_check": {
@@ -72,7 +72,7 @@ def list_jira_projects() -> list[dict[str, Any]]:
                 "JIRA_EMAIL": os.getenv("JIRA_EMAIL", "NOT SET"),
                 "JIRA_API_TOKEN": "SET" if os.getenv("JIRA_API_TOKEN") else "NOT SET"
             }
-        }]
+        }
 
 
 @mcp.tool()
@@ -96,7 +96,7 @@ def list_jira_issues(
     assignee: str | None = None,
     issue_type: str | None = None,
     max_results: int = 100,
-) -> list[dict[str, Any]]:
+) -> dict[str, Any]:
     """List ALL issues in a Jira project with optional filters.
 
     Returns ALL matching issues including those with and without assignees.
@@ -110,10 +110,11 @@ def list_jira_issues(
         max_results: Maximum number of results (default: 100)
 
     Returns:
-        Complete list of ALL matching issues with key details (key, summary, status, assignee, priority, etc.)
+        Dictionary with 'issues' key containing the complete list of ALL matching issues
     """
     client = get_client()
-    return list_issues(client, project_key, status, assignee, issue_type, max_results)
+    issues = list_issues(client, project_key, status, assignee, issue_type, max_results)
+    return {"issues": issues, "count": len(issues)}
 
 
 # ============================================================================
