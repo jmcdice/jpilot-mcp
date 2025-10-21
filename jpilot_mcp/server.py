@@ -76,17 +76,18 @@ def list_jira_projects() -> dict[str, Any]:
 
 
 @mcp.tool()
-def get_jira_issue_types(project_key: str) -> list[dict[str, Any]]:
+def get_jira_issue_types(project_key: str) -> dict[str, Any]:
     """Get available issue types for a Jira project.
 
     Args:
         project_key: Project key (e.g., 'PROJ')
 
     Returns:
-        List of issue types with id, name, description, and subtask flag
+        Dictionary with 'issue_types' key containing list of all available issue types
     """
     client = get_client()
-    return get_issue_types(client, project_key)
+    issue_types = get_issue_types(client, project_key)
+    return {"issue_types": issue_types, "count": len(issue_types)}
 
 
 @mcp.tool()
@@ -137,17 +138,18 @@ def get_jira_issue(issue_key: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-def get_jira_transitions(issue_key: str) -> list[dict[str, Any]]:
+def get_jira_transitions(issue_key: str) -> dict[str, Any]:
     """Get available status transitions for a Jira issue.
 
     Args:
         issue_key: Issue key (e.g., 'PROJ-123')
 
     Returns:
-        List of available transitions with id, name, and target status
+        Dictionary with 'transitions' key containing list of all available transitions
     """
     client = get_client()
-    return get_transitions(client, issue_key)
+    transitions = get_transitions(client, issue_key)
+    return {"transitions": transitions, "count": len(transitions), "issue_key": issue_key}
 
 
 # ============================================================================
