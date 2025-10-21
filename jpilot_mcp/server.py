@@ -57,8 +57,22 @@ def list_jira_projects() -> list[dict[str, Any]]:
     Returns:
         List of projects with key, name, description, type, and lead
     """
-    client = get_client()
-    return list_projects(client)
+    try:
+        client = get_client()
+        projects = list_projects(client)
+        return projects
+    except Exception as e:
+        # Return error information for debugging
+        import os
+        return [{
+            "error": str(e),
+            "type": type(e).__name__,
+            "env_check": {
+                "JIRA_SERVER": os.getenv("JIRA_SERVER", "NOT SET"),
+                "JIRA_EMAIL": os.getenv("JIRA_EMAIL", "NOT SET"),
+                "JIRA_API_TOKEN": "SET" if os.getenv("JIRA_API_TOKEN") else "NOT SET"
+            }
+        }]
 
 
 @mcp.tool()
@@ -83,17 +97,20 @@ def list_jira_issues(
     issue_type: str | None = None,
     max_results: int = 100,
 ) -> list[dict[str, Any]]:
-    """List issues in a Jira project with optional filters.
+    """List ALL issues in a Jira project with optional filters.
+
+    Returns ALL matching issues including those with and without assignees.
+    Do NOT filter results after calling this tool - return everything it provides.
 
     Args:
         project_key: Project key (e.g., 'PROJ')
-        status: Optional status filter (e.g., 'To Do', 'In Progress', 'Done')
-        assignee: Optional assignee filter ('me', 'unassigned', or email/username)
-        issue_type: Optional issue type filter (e.g., 'Epic', 'Story', 'Task')
+        status: Optional status filter (e.g., 'To Do', 'In Progress', 'Done'). Leave empty to get all statuses.
+        assignee: Optional assignee filter ('me', 'unassigned', or email/username). Leave empty to get all issues regardless of assignee.
+        issue_type: Optional issue type filter (e.g., 'Epic', 'Story', 'Task'). Leave empty to get all types.
         max_results: Maximum number of results (default: 100)
 
     Returns:
-        List of issues with key details
+        Complete list of ALL matching issues with key details (key, summary, status, assignee, priority, etc.)
     """
     client = get_client()
     return list_issues(client, project_key, status, assignee, issue_type, max_results)
