@@ -12,6 +12,7 @@ class JiraConfig(BaseModel):
     server: str = Field(..., description="Jira server URL (e.g., https://your-domain.atlassian.net)")
     email: str = Field(..., description="Jira user email")
     api_token: str = Field(..., description="Jira API token")
+    default_project: Optional[str] = Field(None, description="Default Jira project key (optional)")
 
     @classmethod
     def from_env(cls) -> "JiraConfig":
@@ -22,6 +23,7 @@ class JiraConfig(BaseModel):
         server = os.getenv("JIRA_SERVER")
         email = os.getenv("JIRA_EMAIL")
         api_token = os.getenv("JIRA_API_TOKEN")
+        default_project = os.getenv("JIRA_DEFAULT_PROJECT")  # Optional
 
         if not all([server, email, api_token]):
             missing = []
@@ -37,7 +39,7 @@ class JiraConfig(BaseModel):
                 "Please set them in your environment or .env file."
             )
 
-        return cls(server=server, email=email, api_token=api_token)
+        return cls(server=server, email=email, api_token=api_token, default_project=default_project)
 
 
 def get_jira_config() -> JiraConfig:

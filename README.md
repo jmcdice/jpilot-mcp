@@ -117,12 +117,15 @@ Add to your Claude Desktop config file (`~/Library/Application Support/Claude/cl
       "env": {
         "JIRA_SERVER": "https://your-domain.atlassian.net",
         "JIRA_EMAIL": "your-email@example.com",
-        "JIRA_API_TOKEN": "your-api-token"
+        "JIRA_API_TOKEN": "your-api-token",
+        "JIRA_DEFAULT_PROJECT": "PROJ"
       }
     }
   }
 }
 ```
+
+**Optional**: Set `JIRA_DEFAULT_PROJECT` to your most-used project key (e.g., `"CIT"`) to avoid specifying it in every command.
 
 **Note**: Use the full path to Python if needed:
 ```json
@@ -142,10 +145,13 @@ auggie mcp add-json jpilot '{
   "env": {
     "JIRA_SERVER": "https://your-domain.atlassian.net",
     "JIRA_EMAIL": "your-email@example.com",
-    "JIRA_API_TOKEN": "your-api-token"
+    "JIRA_API_TOKEN": "your-api-token",
+    "JIRA_DEFAULT_PROJECT": "PROJ"
   }
 }'
 ```
+
+**Optional**: Set `JIRA_DEFAULT_PROJECT` to your most-used project key (e.g., `"CIT"`) to avoid specifying it in every command.
 
 **Note**: Replace `/path/to/jpilot-mcp/.venv/bin/python` with the actual path to your virtual environment's Python.
 
@@ -240,7 +246,44 @@ chmod +x setup_auggie.sh
 
 jpilot-mcp uses stdio transport and follows the MCP specification. Configure it in your client using:
 - **Command**: `python -m jpilot_mcp.server`
-- **Environment variables**: `JIRA_SERVER`, `JIRA_EMAIL`, `JIRA_API_TOKEN`
+- **Environment variables**: `JIRA_SERVER`, `JIRA_EMAIL`, `JIRA_API_TOKEN`, `JIRA_DEFAULT_PROJECT` (optional)
+
+## Default Project Configuration
+
+You can optionally set a default project to avoid specifying `project_key` in every command:
+
+```bash
+export JIRA_DEFAULT_PROJECT=CIT
+```
+
+Or in your MCP client configuration:
+```json
+"env": {
+  "JIRA_SERVER": "https://your-domain.atlassian.net",
+  "JIRA_EMAIL": "your-email@example.com",
+  "JIRA_API_TOKEN": "your-api-token",
+  "JIRA_DEFAULT_PROJECT": "CIT"
+}
+```
+
+**Benefits:**
+- Shorter commands: `"List all epics"` instead of `"List all epics in CIT"`
+- Less repetition when working primarily on one project
+- Can still override by explicitly specifying a different project
+
+**Example usage with default project:**
+```bash
+# Without default project:
+auggie "List all epics in CIT"
+auggie "Create a task in CIT with summary 'Update docs'"
+
+# With JIRA_DEFAULT_PROJECT=CIT:
+auggie "List all epics"
+auggie "Create a task with summary 'Update docs'"
+
+# Can still override:
+auggie "List all epics in PROJ"  # Uses PROJ instead of CIT
+```
 
 ## Available Tools
 

@@ -76,23 +76,34 @@ def list_jira_projects() -> dict[str, Any]:
 
 
 @mcp.tool()
-def get_jira_issue_types(project_key: str) -> dict[str, Any]:
+def get_jira_issue_types(project_key: str | None = None) -> dict[str, Any]:
     """Get available issue types for a Jira project.
 
     Args:
-        project_key: Project key (e.g., 'PROJ')
+        project_key: Project key (e.g., 'PROJ'). If not provided, uses JIRA_DEFAULT_PROJECT from config.
 
     Returns:
         Dictionary with 'issue_types' key containing list of all available issue types
     """
+    # Use default project if not specified
+    if not project_key:
+        from .config import get_jira_config
+        config = get_jira_config()
+        if not config.default_project:
+            raise ValueError(
+                "No project_key provided and no JIRA_DEFAULT_PROJECT configured. "
+                "Please either specify project_key or set JIRA_DEFAULT_PROJECT environment variable."
+            )
+        project_key = config.default_project
+
     client = get_client()
     issue_types = get_issue_types(client, project_key)
-    return {"issue_types": issue_types, "count": len(issue_types)}
+    return {"issue_types": issue_types, "count": len(issue_types), "project": project_key}
 
 
 @mcp.tool()
 def list_jira_issues(
-    project_key: str,
+    project_key: str | None = None,
     status: str | None = None,
     assignee: str | None = None,
     issue_type: str | None = None,
@@ -104,7 +115,7 @@ def list_jira_issues(
     Do NOT filter results after calling this tool - return everything it provides.
 
     Args:
-        project_key: Project key (e.g., 'PROJ')
+        project_key: Project key (e.g., 'PROJ'). If not provided, uses JIRA_DEFAULT_PROJECT from config.
         status: Optional status filter (e.g., 'To Do', 'In Progress', 'Done'). Leave empty to get all statuses.
         assignee: Optional assignee filter ('me', 'unassigned', or email/username). Leave empty to get all issues regardless of assignee.
         issue_type: Optional issue type filter (e.g., 'Epic', 'Story', 'Task'). Leave empty to get all types.
@@ -113,9 +124,20 @@ def list_jira_issues(
     Returns:
         Dictionary with 'issues' key containing the complete list of ALL matching issues
     """
+    # Use default project if not specified
+    if not project_key:
+        from .config import get_jira_config
+        config = get_jira_config()
+        if not config.default_project:
+            raise ValueError(
+                "No project_key provided and no JIRA_DEFAULT_PROJECT configured. "
+                "Please either specify project_key or set JIRA_DEFAULT_PROJECT environment variable."
+            )
+        project_key = config.default_project
+
     client = get_client()
     issues = list_issues(client, project_key, status, assignee, issue_type, max_results)
-    return {"issues": issues, "count": len(issues)}
+    return {"issues": issues, "count": len(issues), "project": project_key}
 
 
 # ============================================================================
@@ -159,64 +181,97 @@ def get_jira_transitions(issue_key: str) -> dict[str, Any]:
 
 @mcp.tool()
 def create_jira_epic(
-    project_key: str,
     summary: str,
+    project_key: str | None = None,
     description: str | None = None,
 ) -> dict[str, Any]:
     """Create a new Epic in Jira.
 
     Args:
-        project_key: Project key (e.g., 'PROJ')
         summary: Epic summary/title
+        project_key: Project key (e.g., 'PROJ'). If not provided, uses JIRA_DEFAULT_PROJECT from config.
         description: Optional epic description (markdown supported)
 
     Returns:
         Created epic details with key and URL
     """
+    # Use default project if not specified
+    if not project_key:
+        from .config import get_jira_config
+        config = get_jira_config()
+        if not config.default_project:
+            raise ValueError(
+                "No project_key provided and no JIRA_DEFAULT_PROJECT configured. "
+                "Please either specify project_key or set JIRA_DEFAULT_PROJECT environment variable."
+            )
+        project_key = config.default_project
+
     client = get_client()
     return create_epic(client, project_key, summary, description)
 
 
 @mcp.tool()
 def create_jira_story(
-    project_key: str,
     summary: str,
+    project_key: str | None = None,
     description: str | None = None,
     epic_key: str | None = None,
 ) -> dict[str, Any]:
     """Create a new Story in Jira.
 
     Args:
-        project_key: Project key (e.g., 'PROJ')
         summary: Story summary/title
+        project_key: Project key (e.g., 'PROJ'). If not provided, uses JIRA_DEFAULT_PROJECT from config.
         description: Optional story description (markdown supported)
         epic_key: Optional parent epic key to link this story to
 
     Returns:
         Created story details with key and URL
     """
+    # Use default project if not specified
+    if not project_key:
+        from .config import get_jira_config
+        config = get_jira_config()
+        if not config.default_project:
+            raise ValueError(
+                "No project_key provided and no JIRA_DEFAULT_PROJECT configured. "
+                "Please either specify project_key or set JIRA_DEFAULT_PROJECT environment variable."
+            )
+        project_key = config.default_project
+
     client = get_client()
     return create_story(client, project_key, summary, description, epic_key)
 
 
 @mcp.tool()
 def create_jira_task(
-    project_key: str,
     summary: str,
+    project_key: str | None = None,
     description: str | None = None,
     parent_key: str | None = None,
 ) -> dict[str, Any]:
     """Create a new Task in Jira.
 
     Args:
-        project_key: Project key (e.g., 'PROJ')
         summary: Task summary/title
+        project_key: Project key (e.g., 'PROJ'). If not provided, uses JIRA_DEFAULT_PROJECT from config.
         description: Optional task description (markdown supported)
         parent_key: Optional parent issue key (epic or story) to link this task to
 
     Returns:
         Created task details with key and URL
     """
+    # Use default project if not specified
+    if not project_key:
+        from .config import get_jira_config
+        config = get_jira_config()
+        if not config.default_project:
+            raise ValueError(
+                "No project_key provided and no JIRA_DEFAULT_PROJECT configured. "
+                "Please either specify project_key or set JIRA_DEFAULT_PROJECT environment variable."
+            )
+        project_key = config.default_project
+
     client = get_client()
     return create_task(client, project_key, summary, description, parent_key)
 
