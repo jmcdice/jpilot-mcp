@@ -133,16 +133,21 @@ Restart Claude Desktop after making changes.
 
 ### Augment Code (Auggie CLI)
 
-#### Option 1: Using CLI Commands (Recommended)
+#### Option 1: Using add-json Command (Recommended)
 
 ```bash
-auggie mcp add jpilot \
-  --command python \
-  --args "-m jpilot_mcp.server" \
-  --env JIRA_SERVER=https://your-domain.atlassian.net \
-  --env JIRA_EMAIL=your-email@example.com \
-  --env JIRA_API_TOKEN=your-api-token
+auggie mcp add-json jpilot '{
+  "command": "/path/to/jpilot-mcp/.venv/bin/python",
+  "args": ["-m", "jpilot_mcp.server"],
+  "env": {
+    "JIRA_SERVER": "https://your-domain.atlassian.net",
+    "JIRA_EMAIL": "your-email@example.com",
+    "JIRA_API_TOKEN": "your-api-token"
+  }
+}'
 ```
+
+**Note**: Replace `/path/to/jpilot-mcp/.venv/bin/python` with the actual path to your virtual environment's Python.
 
 #### Option 2: Manual Configuration
 
@@ -173,6 +178,36 @@ In interactive mode, check status:
 ```bash
 auggie
 /mcp-status
+```
+
+**Tip**: If you encounter issues with the `--env` flags, use the `add-json` method instead, which handles complex configurations more reliably.
+
+#### Quick Setup Script
+
+You can create a setup script for easy configuration:
+
+```bash
+#!/bin/bash
+# setup_auggie.sh
+
+auggie mcp add-json jpilot '{
+  "command": "/path/to/jpilot-mcp/.venv/bin/python",
+  "args": ["-m", "jpilot_mcp.server"],
+  "env": {
+    "JIRA_SERVER": "https://your-domain.atlassian.net",
+    "JIRA_EMAIL": "your-email@example.com",
+    "JIRA_API_TOKEN": "your-api-token"
+  }
+}'
+
+echo "✓ jpilot-mcp configured for Auggie"
+echo "Test with: auggie \"List all my Jira projects\""
+```
+
+Make it executable and run:
+```bash
+chmod +x setup_auggie.sh
+./setup_auggie.sh
 ```
 
 ### Augment Code (VS Code Extension)
