@@ -14,6 +14,19 @@ Built with [FastMCP](https://github.com/jlowin/fastmcp) and the official Jira Py
 - Creating and tracking issues without leaving your development environment
 - Building custom Jira integrations with natural language
 
+## Recent Updates
+
+### v0.2.0 (Latest)
+- ✨ **ADF Parser**: Descriptions and comments now display as readable plain text instead of raw objects
+- ✨ **Default Project**: Set `JIRA_DEFAULT_PROJECT` to avoid specifying project in every command
+- 🐛 **Fixed List Returns**: All list-returning tools now properly return complete results (no more truncation)
+- 📝 **Better Formatting**: Rich text content (bold, lists, code blocks) is preserved in plain text format
+
+### v0.1.0
+- Initial release with 11 core Jira tools
+- Support for epics, stories, tasks, and subtasks
+- Issue filtering and transitions
+
 ## Features
 
 - **11 Focused Tools**: List projects, create issues, add comments, transition statuses, and more
@@ -21,6 +34,8 @@ Built with [FastMCP](https://github.com/jlowin/fastmcp) and the official Jira Py
 - **Issue Reading**: Get detailed issue information including comments, subtasks, and parent relationships
 - **Issue Creation**: Create epics, stories, tasks, and subtasks with proper hierarchy and markdown support
 - **Issue Management**: Add comments and transition issues through workflows
+- **Rich Text Support**: Automatically converts Atlassian Document Format (ADF) to readable plain text for descriptions and comments
+- **Default Project**: Optional default project configuration to avoid repetitive project specification
 - **Type-Safe**: Built with Pydantic models for reliable data handling
 - **Agent-Friendly**: Designed specifically for AI agent interaction via MCP
 - **Production Ready**: Tested with real Jira Cloud instances
@@ -298,33 +313,36 @@ jpilot-mcp exposes 11 MCP tools for Jira operations:
 
 **`get_jira_issue_types`**
 - Gets available issue types for a specific project
-- Parameters: `project_key` (e.g., "PROJ")
-- Returns: Issue type ID, name, description, and whether it's a subtask type
-- Example: "What issue types are available in project PROJ?"
+- Parameters: `project_key` (optional if `JIRA_DEFAULT_PROJECT` is set)
+- Returns: Dictionary with `issue_types` array containing ID, name, description, and subtask flag
+- Example: "What issue types are available?" or "What issue types are available in project PROJ?"
 
 **`list_jira_issues`**
-- Lists issues in a project with optional filters
+- Lists ALL issues in a project with optional filters (returns complete results, not truncated)
 - Parameters:
-  - `project_key` (required)
+  - `project_key` (optional if `JIRA_DEFAULT_PROJECT` is set)
   - `status` (optional: "To Do", "In Progress", "Done", etc.)
   - `assignee` (optional: "me", "unassigned", or email/username)
   - `issue_type` (optional: "Epic", "Story", "Task", etc.)
   - `max_results` (optional: default 100)
-- Returns: List of issues with key details
-- Example: "Show me all open tasks assigned to me in project PROJ"
+- Returns: Dictionary with `issues` array and `count`
+- Example: "Show me all open tasks assigned to me" or "List all epics in project PROJ"
 
 ### Issue Reading Tools
 
 **`get_jira_issue`**
 - Gets detailed information about a specific issue
 - Parameters: `issue_key` (e.g., "PROJ-123")
-- Returns: Full issue details including description, comments, subtasks, and parent
+- Returns: Full issue details including:
+  - **Readable description** (ADF converted to plain text)
+  - **Comment bodies** (ADF converted to plain text)
+  - Subtasks, parent issue, status, assignee, priority, dates
 - Example: "Show me details for issue PROJ-123"
 
 **`get_jira_transitions`**
 - Gets available status transitions for an issue
 - Parameters: `issue_key`
-- Returns: List of available transitions with names and target statuses
+- Returns: Dictionary with `transitions` array containing ID, name, and target status
 - Example: "What status changes are available for PROJ-123?"
 
 ### Issue Creation Tools
@@ -332,17 +350,17 @@ jpilot-mcp exposes 11 MCP tools for Jira operations:
 **`create_jira_epic`**
 - Creates a new epic
 - Parameters:
-  - `project_key` (required)
   - `summary` (required)
+  - `project_key` (optional if `JIRA_DEFAULT_PROJECT` is set)
   - `description` (optional, markdown supported)
 - Returns: Created epic key and URL
-- Example: "Create an epic called 'Q4 Features' in project PROJ"
+- Example: "Create an epic called 'Q4 Features'" or "Create an epic 'Q4 Features' in project PROJ"
 
 **`create_jira_story`**
 - Creates a new story
 - Parameters:
-  - `project_key` (required)
   - `summary` (required)
+  - `project_key` (optional if `JIRA_DEFAULT_PROJECT` is set)
   - `description` (optional, markdown supported)
   - `epic_key` (optional, to link to an epic)
 - Returns: Created story key and URL
@@ -351,12 +369,12 @@ jpilot-mcp exposes 11 MCP tools for Jira operations:
 **`create_jira_task`**
 - Creates a new task
 - Parameters:
-  - `project_key` (required)
   - `summary` (required)
+  - `project_key` (optional if `JIRA_DEFAULT_PROJECT` is set)
   - `description` (optional, markdown supported)
   - `parent_key` (optional, to link to epic or story)
 - Returns: Created task key and URL
-- Example: "Create a task 'Update documentation' in project PROJ"
+- Example: "Create a task 'Update documentation'" or "Create a task 'Update docs' in project PROJ"
 
 **`create_jira_subtask`**
 - Creates a subtask under a parent issue
@@ -395,13 +413,16 @@ Once configured, you can interact with Jira naturally through your MCP client.
 
 **Discovery:**
 - "List all my Jira projects"
-- "What issue types are available in project PROJ?"
-- "Show me all open issues assigned to me in PROJ"
+- "What issue types are available?" (uses default project if set)
+- "What issue types are available in project PROJ?" (explicit project)
+- "Show me all open issues assigned to me" (uses default project)
+- "Show me all epics in PROJ" (explicit project)
 
 **Creating Issues:**
-- "Create an epic called 'Q4 2024 Features' in project PROJ"
+- "Create an epic called 'Q4 2024 Features'" (uses default project)
+- "Create an epic 'Q4 Features' in project PROJ" (explicit project)
 - "Create a story 'Implement user authentication' under epic PROJ-100"
-- "Create a task 'Update API documentation' in PROJ"
+- "Create a task 'Update API documentation'"
 - "Add a subtask 'Write unit tests' to PROJ-123"
 
 **Managing Issues:**
@@ -413,7 +434,7 @@ Once configured, you can interact with Jira naturally through your MCP client.
 **Complex Workflows:**
 - "Create an epic for the new payment system, then create 3 stories under it for frontend, backend, and testing"
 - "Find all bugs assigned to me and list them with their status"
-- "Show me all issues in project PROJ that are in review"
+- "Show me all issues that are in review"
 
 ### Augment Code (Auggie CLI) Examples
 
@@ -426,9 +447,11 @@ Then use natural language:
 ```
 List all my Jira projects
 
-Show me all open issues in project PROJ
+Show me all open issues
 
-Create an epic called "Authentication System" in project PROJ
+List all epics
+
+Create an epic called "Authentication System"
 
 Add a comment to PROJ-123 saying "Implemented the new feature"
 
@@ -437,10 +460,17 @@ Move PROJ-123 to Done
 
 **One-Shot Commands:**
 ```bash
-# Quick queries
+# Quick queries (with default project)
+auggie "List all open bugs"
+auggie "Show me all epics"
+
+# Quick queries (explicit project)
 auggie "List all open bugs in project PROJ"
 
-# Create issues
+# Create issues (with default project)
+auggie "Create a task for updating the API documentation"
+
+# Create issues (explicit project)
 auggie "Create a task in PROJ for updating the API documentation"
 
 # Complex workflows
@@ -507,14 +537,15 @@ mypy jpilot_mcp
 
 ```
 jpilot_mcp/
-├── core/           # Core Jira business logic
-│   ├── client.py   # Jira client wrapper
-│   ├── issues.py   # Issue operations
-│   ├── projects.py # Project operations
-│   ├── search.py   # Search operations
-│   └── models.py   # Pydantic data models
-├── server.py       # MCP server implementation
-└── config.py       # Configuration management
+├── core/            # Core Jira business logic
+│   ├── client.py    # Jira client wrapper
+│   ├── issues.py    # Issue operations
+│   ├── projects.py  # Project operations
+│   ├── search.py    # Search operations
+│   ├── adf_parser.py # ADF to plain text converter
+│   └── models.py    # Pydantic data models
+├── server.py        # MCP server implementation (FastMCP)
+└── config.py        # Configuration management
 ```
 
 ## Troubleshooting
@@ -531,6 +562,13 @@ jpilot_mcp/
 - Verify all three variables are set: `JIRA_SERVER`, `JIRA_EMAIL`, `JIRA_API_TOKEN`
 - If using Claude Desktop, check the environment variables in the config file
 
+### Default Project Issues
+
+**Error: "No project_key provided and no JIRA_DEFAULT_PROJECT configured"**
+- Either specify the project explicitly: `"List all epics in CIT"`
+- Or set `JIRA_DEFAULT_PROJECT` in your environment configuration
+- Example: Add `"JIRA_DEFAULT_PROJECT": "CIT"` to your MCP client config
+
 ### Issue Creation Issues
 
 **Error: "Specify a valid issue type"**
@@ -543,6 +581,18 @@ jpilot_mcp/
 - The MCP server currently only supports standard fields
 - You may need to create issues manually in Jira if custom fields are required
 
+### List Results Issues
+
+**Problem: "Only seeing 1 result when there should be more"**
+- This was fixed in v0.2.0 - make sure you're running the latest version
+- Run `git pull` and `pip install -e .` to update
+- Restart your MCP client after updating
+
+**Problem: "Descriptions showing as PropertyHolder objects"**
+- This was fixed in v0.2.0 with the ADF parser
+- Update to the latest version and restart your MCP client
+- Descriptions and comments now display as readable plain text
+
 ### Claude Desktop Not Showing Tools
 
 1. Check the config file location: `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -550,9 +600,32 @@ jpilot_mcp/
 3. Restart Claude Desktop after making config changes
 4. Check Claude Desktop logs for errors
 
+### Auggie CLI Issues
+
+**Tools not available:**
+```bash
+# Verify jpilot is configured
+auggie mcp list
+
+# Reconfigure if needed
+cd ~/dev/jpilot-mcp/scratch
+./bleh.sh
+
+# Restart Auggie
+auggie
+```
+
+**MCP server not starting:**
+- Check Python path in configuration is correct
+- Verify virtual environment exists: `ls ~/dev/jpilot-mcp/.venv/bin/python`
+- Test server manually: `source .venv/bin/activate && python -m jpilot_mcp.server`
+
 ## Notes
 
-- **Markdown Support**: Descriptions and comments support markdown formatting, which is automatically converted to Jira's ADF (Atlassian Document Format)
+- **Rich Text Support**: Jira uses Atlassian Document Format (ADF) for rich text. jpilot-mcp automatically converts ADF to readable plain text for descriptions and comments, preserving formatting like bold, lists, and code blocks
+- **Markdown Support**: When creating issues, descriptions and comments support markdown formatting, which is automatically converted to Jira's ADF
+- **Default Project**: Set `JIRA_DEFAULT_PROJECT` to avoid specifying project in every command. You can still override by explicitly mentioning a different project
+- **Complete Results**: All list-returning tools return complete results (not truncated). The `issues` array contains all matching items
 - **Assignee Flexibility**: When assigning issues, you can use display names, email addresses, or Jira account IDs
 - **Parent Relationships**: Stories can be linked to Epics, Tasks can be linked to Epics or Stories, and Subtasks must have a parent Story or Task
 - **Status Transitions**: Available transitions depend on your Jira workflow configuration. Use `get_jira_transitions` to see what's available for each issue
