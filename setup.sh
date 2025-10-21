@@ -6,16 +6,30 @@ set -e
 echo "Setting up jpilot-mcp..."
 
 # Check Python version
-if ! command -v python3.11 &> /dev/null; then
-    echo "Error: Python 3.11+ is required but not found."
+if ! command -v python3 &> /dev/null; then
+    echo "Error: Python 3 is required but not found."
     echo "Please install Python 3.11 or higher."
     exit 1
 fi
 
+# Get Python version
+PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
+PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
+PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
+
+# Check if Python version is 3.11 or higher
+if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 11 ]); then
+    echo "Error: Python 3.11+ is required but found Python $PYTHON_VERSION"
+    echo "Please install Python 3.11 or higher."
+    exit 1
+fi
+
+echo "✓ Found Python $PYTHON_VERSION"
+
 # Create virtual environment if it doesn't exist
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
-    python3.11 -m venv .venv
+    python3 -m venv .venv
 fi
 
 # Activate virtual environment
