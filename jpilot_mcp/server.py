@@ -1,0 +1,281 @@
+"""MCP server for Jira integration using FastMCP."""
+
+import sys
+from typing import Any
+
+from mcp.server.fastmcp import FastMCP
+
+from .config import get_jira_config
+from .core import (
+    JiraClient,
+    JiraError,
+    create_jira_client,
+    list_projects,
+    get_issue_types,
+    list_issues,
+    get_issue,
+    get_transitions,
+    create_epic,
+    create_story,
+    create_task,
+    create_subtask,
+    add_comment,
+    transition_issue,
+)
+
+# Create FastMCP server
+mcp = FastMCP(
+    name="jpilot-mcp",
+    instructions="MCP server for Jira integration. Provides tools for managing Jira issues, epics, stories, tasks, and subtasks.",
+)
+
+# Global Jira client (initialized on first use)
+_jira_client: JiraClient | None = None
+
+
+def get_client() -> JiraClient:
+    """Get or create the Jira client instance."""
+    global _jira_client
+    if _jira_client is None:
+        try:
+            config = get_jira_config()
+            _jira_client = create_jira_client(config)
+        except Exception as e:
+            raise JiraError(f"Failed to initialize Jira client: {str(e)}") from e
+    return _jira_client
+
+
+# ============================================================================
+# Discovery Tools
+# ============================================================================
+
+
+@mcp.tool()
+def list_jira_projects() -> list[dict[str, Any]]:
+    """List all accessible Jira projects.
+
+    Returns:
+        List of projects with key, name, description, type, and lead
+    """
+    client = get_client()
+    return list_projects(client)
+
+
+@mcp.tool()
+def get_jira_issue_types(project_key: str) -> list[dict[str, Any]]:
+    """Get available issue types for a Jira project.
+
+    Args:
+        project_key: Project key (e.g., 'PROJ')
+
+    Returns:
+        List of issue types with id, name, description, and subtask flag
+    """
+    client = get_client()
+    return get_issue_types(client, project_key)
+
+
+@mcp.tool()
+def list_jira_issues(
+    project_key: str,
+    status: str | None = None,
+    assignee: str | None = None,
+    issue_type: str | None = None,
+    max_results: int = 100,
+) -> list[dict[str, Any]]:
+    """List issues in a Jira project with optional filters.
+
+    Args:
+        project_key: Project key (e.g., 'PROJ')
+        status: Optional status filter (e.g., 'To Do', 'In Progress', 'Done')
+        assignee: Optional assignee filter ('me', 'unassigned', or email/username)
+        issue_type: Optional issue type filter (e.g., 'Epic', 'Story', 'Task')
+        max_results: Maximum number of results (default: 100)
+
+    Returns:
+        List of issues with key details
+    """
+    client = get_client()
+    return list_issues(client, project_key, status, assignee, issue_type, max_results)
+
+
+# ============================================================================
+# Issue Reading Tools
+# ============================================================================
+
+
+@mcp.tool()
+def get_jira_issue(issue_key: str) -> dict[str, Any]:
+    """Get detailed information about a specific Jira issue.
+
+    Args:
+        issue_key: Issue key (e.g., 'PROJ-123')
+
+    Returns:
+        Detailed issue information including description, comments, subtasks, and parent
+    """
+    client = get_client()
+    return get_issue(client, issue_key)
+
+
+@mcp.tool()
+def get_jira_transitions(issue_key: str) -> list[dict[str, Any]]:
+    """Get available status transitions for a Jira issue.
+
+    Args:
+        issue_key: Issue key (e.g., 'PROJ-123')
+
+    Returns:
+        List of available transitions with id, name, and target status
+    """
+    client = get_client()
+    return get_transitions(client, issue_key)
+
+
+# ============================================================================
+# Issue Creation Tools
+# ============================================================================
+
+
+@mcp.tool()
+def create_jira_epic(
+    project_key: str,
+    summary: str,
+    description: str | None = None,
+) -> dict[str, Any]:
+    """Create a new Epic in Jira.
+
+    Args:
+        project_key: Project key (e.g., 'PROJ')
+        summary: Epic summary/title
+        description: Optional epic description (markdown supported)
+
+    Returns:
+        Created epic details with key and URL
+    """
+    client = get_client()
+    return create_epic(client, project_key, summary, description)
+
+
+@mcp.tool()
+def create_jira_story(
+    project_key: str,
+    summary: str,
+    description: str | None = None,
+    epic_key: str | None = None,
+) -> dict[str, Any]:
+    """Create a new Story in Jira.
+
+    Args:
+        project_key: Project key (e.g., 'PROJ')
+        summary: Story summary/title
+        description: Optional story description (markdown supported)
+        epic_key: Optional parent epic key to link this story to
+
+    Returns:
+        Created story details with key and URL
+    """
+    client = get_client()
+    return create_story(client, project_key, summary, description, epic_key)
+
+
+@mcp.tool()
+def create_jira_task(
+    project_key: str,
+    summary: str,
+    description: str | None = None,
+    parent_key: str | None = None,
+) -> dict[str, Any]:
+    """Create a new Task in Jira.
+
+    Args:
+        project_key: Project key (e.g., 'PROJ')
+        summary: Task summary/title
+        description: Optional task description (markdown supported)
+        parent_key: Optional parent issue key (epic or story) to link this task to
+
+    Returns:
+        Created task details with key and URL
+    """
+    client = get_client()
+    return create_task(client, project_key, summary, description, parent_key)
+
+
+@mcp.tool()
+def create_jira_subtask(
+    parent_key: str,
+    summary: str,
+    description: str | None = None,
+    assignee: str | None = None,
+) -> dict[str, Any]:
+    """Create a new Subtask under a parent issue in Jira.
+
+    Args:
+        parent_key: Parent issue key (must be Story or Task)
+        summary: Subtask summary/title
+        description: Optional subtask description (markdown supported)
+        assignee: Optional assignee (display name, email, or account ID)
+
+    Returns:
+        Created subtask details with key and URL
+    """
+    client = get_client()
+    return create_subtask(client, parent_key, summary, description, assignee)
+
+
+# ============================================================================
+# Issue Management Tools
+# ============================================================================
+
+
+@mcp.tool()
+def add_jira_comment(issue_key: str, comment: str) -> dict[str, Any]:
+    """Add a comment to a Jira issue.
+
+    Args:
+        issue_key: Issue key (e.g., 'PROJ-123')
+        comment: Comment text (markdown supported)
+
+    Returns:
+        Comment details with id, created timestamp, and author
+    """
+    client = get_client()
+    return add_comment(client, issue_key, comment)
+
+
+@mcp.tool()
+def transition_jira_issue(issue_key: str, transition_name: str) -> dict[str, Any]:
+    """Change the status of a Jira issue.
+
+    Args:
+        issue_key: Issue key (e.g., 'PROJ-123')
+        transition_name: Transition name (e.g., 'In Progress', 'Done')
+                        Use get_jira_transitions to see available transitions
+
+    Returns:
+        Updated issue with new status
+    """
+    client = get_client()
+    return transition_issue(client, issue_key, transition_name)
+
+
+# ============================================================================
+# Main Entry Point
+# ============================================================================
+
+
+def main() -> None:
+    """Main entry point for the MCP server."""
+    try:
+        # Run the server with stdio transport
+        mcp.run(transport="stdio")
+    except KeyboardInterrupt:
+        print("\nShutting down jpilot-mcp server...", file=sys.stderr)
+    except Exception as e:
+        print(f"Error running server: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+
