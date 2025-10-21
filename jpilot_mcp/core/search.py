@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Any
 from jira.exceptions import JIRAError
 
 from .client import JiraClient, JiraError
+from .adf_parser import extract_text_from_jira_field
 
 
 def search_issues(
@@ -140,10 +141,8 @@ def get_issue(client: JiraClient, issue_key: str) -> Dict[str, Any]:
         comments = []
         if hasattr(issue.fields, "comment") and issue.fields.comment.comments:
             for comment in issue.fields.comment.comments[-10:]:
-                # Safely extract comment body (handle both string and complex objects)
-                body = ""
-                if comment.body:
-                    body = str(comment.body) if not isinstance(comment.body, str) else comment.body
+                # Extract comment body using ADF parser
+                body = extract_text_from_jira_field(comment.body) if comment.body else ""
 
                 comments.append({
                     "author": comment.author.displayName,
@@ -160,14 +159,8 @@ def get_issue(client: JiraClient, issue_key: str) -> Dict[str, Any]:
                 "issue_type": issue.fields.parent.fields.issuetype.name,
             }
         
-        # Safely extract description (handle both string and complex objects)
-        description = ""
-        if issue.fields.description:
-            if isinstance(issue.fields.description, str):
-                description = issue.fields.description
-            else:
-                # Handle complex description objects (ADF format, etc.)
-                description = str(issue.fields.description)
+        # Extract description using ADF parser
+        description = extract_text_from_jira_field(issue.fields.description) if issue.fields.description else ""
 
         return {
             "key": issue.key,
