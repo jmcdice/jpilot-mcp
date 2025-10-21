@@ -140,9 +140,14 @@ def get_issue(client: JiraClient, issue_key: str) -> Dict[str, Any]:
         comments = []
         if hasattr(issue.fields, "comment") and issue.fields.comment.comments:
             for comment in issue.fields.comment.comments[-10:]:
+                # Safely extract comment body (handle both string and complex objects)
+                body = ""
+                if comment.body:
+                    body = str(comment.body) if not isinstance(comment.body, str) else comment.body
+
                 comments.append({
                     "author": comment.author.displayName,
-                    "body": comment.body,
+                    "body": body,
                     "created": comment.created,
                 })
         
@@ -155,10 +160,19 @@ def get_issue(client: JiraClient, issue_key: str) -> Dict[str, Any]:
                 "issue_type": issue.fields.parent.fields.issuetype.name,
             }
         
+        # Safely extract description (handle both string and complex objects)
+        description = ""
+        if issue.fields.description:
+            if isinstance(issue.fields.description, str):
+                description = issue.fields.description
+            else:
+                # Handle complex description objects (ADF format, etc.)
+                description = str(issue.fields.description)
+
         return {
             "key": issue.key,
             "summary": issue.fields.summary,
-            "description": issue.fields.description or "",
+            "description": description,
             "status": issue.fields.status.name,
             "issue_type": issue.fields.issuetype.name,
             "assignee": issue.fields.assignee.displayName if issue.fields.assignee else "Unassigned",
