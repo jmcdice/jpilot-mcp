@@ -11,6 +11,7 @@ from .issues import (
     create_task,
     create_subtask,
     add_comment,
+    update_issue,
     transition_issue,
 )
 from .models import (
@@ -65,6 +66,7 @@ __all__ = [
     "create_task",
     "create_subtask",
     "add_comment",
+    "update_issue",
     "transition_issue",
     # Models - Project
     "Project",

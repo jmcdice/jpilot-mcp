@@ -20,6 +20,7 @@ from .core import (
     create_task,
     create_subtask,
     add_comment,
+    update_issue,
     transition_issue,
 )
 
@@ -219,14 +220,25 @@ def create_jira_story(
 ) -> dict[str, Any]:
     """Create a new Story in Jira.
 
+    **IMPORTANT**: When creating stories for an epic, ALWAYS provide the epic_key parameter to link them together.
+    This creates the proper parent-child relationship in Jira.
+
     Args:
         summary: Story summary/title
         project_key: Project key (e.g., 'PROJ'). If not provided, uses JIRA_DEFAULT_PROJECT from config.
         description: Optional story description (markdown supported)
-        epic_key: Optional parent epic key to link this story to
+        epic_key: **STRONGLY RECOMMENDED** - Parent epic key to link this story to (e.g., 'CIT-123').
+                  Always provide this when creating stories under an epic.
 
     Returns:
         Created story details with key and URL
+
+    Example:
+        create_jira_story(
+            summary="Implement user login",
+            epic_key="CIT-123",  # Links this story to epic CIT-123
+            description="Add authentication flow"
+        )
     """
     # Use default project if not specified
     if not project_key:
@@ -252,14 +264,25 @@ def create_jira_task(
 ) -> dict[str, Any]:
     """Create a new Task in Jira.
 
+    **IMPORTANT**: When creating tasks for an epic or story, ALWAYS provide the parent_key parameter to link them together.
+    This creates the proper parent-child relationship in Jira.
+
     Args:
         summary: Task summary/title
         project_key: Project key (e.g., 'PROJ'). If not provided, uses JIRA_DEFAULT_PROJECT from config.
         description: Optional task description (markdown supported)
-        parent_key: Optional parent issue key (epic or story) to link this task to
+        parent_key: **STRONGLY RECOMMENDED** - Parent issue key (epic or story) to link this task to (e.g., 'CIT-123').
+                    Always provide this when creating tasks under an epic or story.
 
     Returns:
         Created task details with key and URL
+
+    Example:
+        create_jira_task(
+            summary="Setup database",
+            parent_key="CIT-123",  # Links this task to epic CIT-123
+            description="Configure PostgreSQL with pgvector"
+        )
     """
     # Use default project if not specified
     if not project_key:
@@ -316,6 +339,52 @@ def add_jira_comment(issue_key: str, comment: str) -> dict[str, Any]:
     """
     client = get_client()
     return add_comment(client, issue_key, comment)
+
+
+@mcp.tool()
+def update_jira_issue(
+    issue_key: str,
+    summary: str | None = None,
+    description: str | None = None,
+    assignee: str | None = None,
+    priority: str | None = None,
+    epic_link: str | None = None,
+    labels: list[str] | None = None,
+) -> dict[str, Any]:
+    """Update an existing Jira issue.
+
+    Use this tool to modify issue fields like summary, description, assignee, priority, or to link an issue to an epic.
+
+    IMPORTANT: To link a story/task to an epic, use the epic_link parameter with the epic's key (e.g., 'CIT-123').
+
+    Args:
+        issue_key: Issue key to update (e.g., 'PROJ-123')
+        summary: New summary/title (optional)
+        description: New description (markdown supported, optional)
+        assignee: New assignee (display name, email, account ID, or 'unassigned', optional)
+        priority: New priority (e.g., 'High', 'Medium', 'Low', optional)
+        epic_link: Link this issue to an epic by providing the epic key (e.g., 'PROJ-100', optional)
+        labels: Set labels as a list of strings (optional)
+
+    Returns:
+        Updated issue details including key, summary, status, assignee, priority, and URL
+
+    Examples:
+        - Link a story to an epic: update_jira_issue('CIT-124', epic_link='CIT-123')
+        - Change assignee: update_jira_issue('CIT-124', assignee='john.doe@example.com')
+        - Update multiple fields: update_jira_issue('CIT-124', summary='New title', priority='High', epic_link='CIT-123')
+    """
+    client = get_client()
+    return update_issue(
+        client,
+        issue_key,
+        summary=summary,
+        description=description,
+        assignee=assignee,
+        priority=priority,
+        epic_link=epic_link,
+        labels=labels,
+    )
 
 
 @mcp.tool()

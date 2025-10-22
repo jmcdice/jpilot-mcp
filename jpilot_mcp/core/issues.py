@@ -323,6 +323,86 @@ def add_comment(
         raise JiraError(f"Failed to add comment to '{issue_key}': {str(e)}") from e
 
 
+def update_issue(
+    client: JiraClient,
+    issue_key: str,
+    summary: Optional[str] = None,
+    description: Optional[str] = None,
+    assignee: Optional[str] = None,
+    priority: Optional[str] = None,
+    epic_link: Optional[str] = None,
+    labels: Optional[list[str]] = None,
+) -> Dict[str, Any]:
+    """Update an existing Jira issue.
+
+    Args:
+        client: Jira client instance
+        issue_key: Issue key to update (e.g., 'PROJ-123')
+        summary: New summary/title (optional)
+        description: New description (markdown supported, optional)
+        assignee: New assignee (display name, email, or account ID, optional)
+        priority: New priority (e.g., 'High', 'Medium', 'Low', optional)
+        epic_link: Link this issue to an epic by providing epic key (e.g., 'PROJ-100', optional)
+        labels: Set labels (list of strings, optional)
+
+    Returns:
+        Dictionary with updated issue details
+
+    Raises:
+        JiraError: If update fails
+    """
+    try:
+        # Build update fields
+        fields = {}
+
+        if summary is not None:
+            fields["summary"] = summary
+
+        if description is not None:
+            fields["description"] = _markdown_to_adf(description)
+
+        if assignee is not None:
+            if assignee.lower() == "unassigned" or assignee == "":
+                fields["assignee"] = None
+            else:
+                account_id = _find_user_by_identifier(client, assignee)
+                if account_id:
+                    fields["assignee"] = {"accountId": account_id}
+
+        if priority is not None:
+            fields["priority"] = {"name": priority}
+
+        if labels is not None:
+            fields["labels"] = labels
+
+        # Handle epic link (parent field)
+        if epic_link is not None:
+            fields["parent"] = {"key": epic_link}
+
+        # Update the issue
+        if fields:
+            issue = client.client.issue(issue_key)
+            issue.update(fields=fields)
+
+        # Fetch updated issue to return current state
+        updated_issue = client.client.issue(issue_key)
+
+        return {
+            "key": updated_issue.key,
+            "summary": updated_issue.fields.summary,
+            "status": updated_issue.fields.status.name,
+            "assignee": updated_issue.fields.assignee.displayName if updated_issue.fields.assignee else "Unassigned",
+            "priority": updated_issue.fields.priority.name if updated_issue.fields.priority else None,
+            "url": f"{client.config.server}/browse/{updated_issue.key}",
+        }
+    except JIRAError as e:
+        if e.status_code == 404:
+            raise JiraError(f"Issue '{issue_key}' not found") from e
+        raise JiraError(f"Failed to update issue '{issue_key}': {e.text}") from e
+    except Exception as e:
+        raise JiraError(f"Failed to update issue '{issue_key}': {str(e)}") from e
+
+
 def transition_issue(
     client: JiraClient,
     issue_key: str,
