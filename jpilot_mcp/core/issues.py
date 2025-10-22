@@ -9,8 +9,16 @@ from .client import JiraClient, JiraError
 def _markdown_to_adf(text: str) -> Dict[str, Any]:
     """Convert markdown text to Atlassian Document Format (ADF).
 
-    This is a simple conversion that wraps text in paragraphs.
-    For more complex markdown, a proper parser would be needed.
+    Supports common markdown features:
+    - Headers (# through ######)
+    - Bold (**text** or __text__)
+    - Italic (*text* or _text_)
+    - Code blocks (```)
+    - Inline code (`code`)
+    - Unordered lists (- or *)
+    - Ordered lists (1. 2. etc.)
+    - Links ([text](url))
+    - Horizontal rules (---)
 
     Args:
         text: Markdown text
@@ -18,44 +26,212 @@ def _markdown_to_adf(text: str) -> Dict[str, Any]:
     Returns:
         ADF document structure
     """
-    # Split by double newlines to create paragraphs
-    paragraphs = text.split("\n\n")
-    
+    import re
+
+    if not text or not text.strip():
+        return {
+            "type": "doc",
+            "version": 1,
+            "content": [{"type": "paragraph", "content": []}]
+        }
+
     content = []
-    for para in paragraphs:
-        if para.strip():
-            # Split by single newlines within paragraph
-            lines = para.strip().split("\n")
-            para_content = []
-            
-            for i, line in enumerate(lines):
-                if line.strip():
-                    para_content.append({
-                        "type": "text",
-                        "text": line.strip()
-                    })
-                    # Add hard break between lines (except last)
-                    if i < len(lines) - 1:
-                        para_content.append({"type": "hardBreak"})
-            
-            if para_content:
-                content.append({
-                    "type": "paragraph",
-                    "content": para_content
+    lines = text.split('\n')
+    i = 0
+
+    while i < len(lines):
+        line = lines[i]
+
+        # Skip empty lines between blocks
+        if not line.strip():
+            i += 1
+            continue
+
+        # Code block (```)
+        if line.strip().startswith('```'):
+            code_lines = []
+            language = line.strip()[3:].strip() or None
+            i += 1
+            while i < len(lines) and not lines[i].strip().startswith('```'):
+                code_lines.append(lines[i])
+                i += 1
+            i += 1  # Skip closing ```
+
+            code_content = '\n'.join(code_lines)
+            content.append({
+                "type": "codeBlock",
+                "attrs": {"language": language} if language else {},
+                "content": [{"type": "text", "text": code_content}]
+            })
+            continue
+
+        # Headers (# through ######)
+        header_match = re.match(r'^(#{1,6})\s+(.+)$', line)
+        if header_match:
+            level = len(header_match.group(1))
+            header_text = header_match.group(2).strip()
+            content.append({
+                "type": "heading",
+                "attrs": {"level": level},
+                "content": _parse_inline_markdown(header_text)
+            })
+            i += 1
+            continue
+
+        # Horizontal rule (---)
+        if re.match(r'^-{3,}$', line.strip()):
+            content.append({"type": "rule"})
+            i += 1
+            continue
+
+        # Unordered list
+        if re.match(r'^[\*\-]\s+', line):
+            list_items = []
+            while i < len(lines) and re.match(r'^[\*\-]\s+', lines[i]):
+                item_text = re.sub(r'^[\*\-]\s+', '', lines[i])
+                list_items.append({
+                    "type": "listItem",
+                    "content": [{
+                        "type": "paragraph",
+                        "content": _parse_inline_markdown(item_text)
+                    }]
                 })
-    
-    # If no content, add empty paragraph
+                i += 1
+            content.append({
+                "type": "bulletList",
+                "content": list_items
+            })
+            continue
+
+        # Ordered list
+        if re.match(r'^\d+\.\s+', line):
+            list_items = []
+            while i < len(lines) and re.match(r'^\d+\.\s+', lines[i]):
+                item_text = re.sub(r'^\d+\.\s+', '', lines[i])
+                list_items.append({
+                    "type": "listItem",
+                    "content": [{
+                        "type": "paragraph",
+                        "content": _parse_inline_markdown(item_text)
+                    }]
+                })
+                i += 1
+            content.append({
+                "type": "orderedList",
+                "content": list_items
+            })
+            continue
+
+        # Regular paragraph - collect consecutive non-empty lines
+        para_lines = []
+        while i < len(lines) and lines[i].strip() and \
+              not re.match(r'^(#{1,6}|\*|\-|\d+\.)\s+', lines[i]) and \
+              not lines[i].strip().startswith('```'):
+            para_lines.append(lines[i])
+            i += 1
+
+        if para_lines:
+            para_text = ' '.join(para_lines)
+            content.append({
+                "type": "paragraph",
+                "content": _parse_inline_markdown(para_text)
+            })
+
     if not content:
-        content = [{
-            "type": "paragraph",
-            "content": []
-        }]
-    
+        content = [{"type": "paragraph", "content": []}]
+
     return {
         "type": "doc",
         "version": 1,
         "content": content
     }
+
+
+def _parse_inline_markdown(text: str) -> list[Dict[str, Any]]:
+    """Parse inline markdown formatting (bold, italic, code, links).
+
+    Args:
+        text: Text with inline markdown
+
+    Returns:
+        List of ADF text nodes with marks
+    """
+    import re
+
+    if not text:
+        return []
+
+    # Pattern to match inline markdown elements
+    # Order matters: code first, then bold, then italic, then links
+    pattern = r'(`[^`]+`|\*\*[^*]+\*\*|__[^_]+__|(?<!\*)\*(?!\*)([^*]+)(?<!\*)\*(?!\*)|_([^_]+)_|\[([^\]]+)\]\(([^)]+)\))'
+
+    result = []
+    last_end = 0
+
+    for match in re.finditer(pattern, text):
+        # Add plain text before this match
+        if match.start() > last_end:
+            plain_text = text[last_end:match.start()]
+            if plain_text:
+                result.append({"type": "text", "text": plain_text})
+
+        matched_text = match.group(0)
+
+        # Inline code (`code`)
+        if matched_text.startswith('`') and matched_text.endswith('`'):
+            code_text = matched_text[1:-1]
+            result.append({
+                "type": "text",
+                "text": code_text,
+                "marks": [{"type": "code"}]
+            })
+
+        # Bold (**text** or __text__)
+        elif matched_text.startswith('**') or matched_text.startswith('__'):
+            bold_text = matched_text[2:-2]
+            result.append({
+                "type": "text",
+                "text": bold_text,
+                "marks": [{"type": "strong"}]
+            })
+
+        # Italic (*text* or _text_) - single asterisk/underscore
+        elif (matched_text.startswith('*') and matched_text.endswith('*') and
+              not matched_text.startswith('**')) or \
+             (matched_text.startswith('_') and matched_text.endswith('_') and
+              not matched_text.startswith('__')):
+            italic_text = matched_text[1:-1]
+            result.append({
+                "type": "text",
+                "text": italic_text,
+                "marks": [{"type": "em"}]
+            })
+
+        # Link ([text](url))
+        elif matched_text.startswith('['):
+            link_match = re.match(r'\[([^\]]+)\]\(([^)]+)\)', matched_text)
+            if link_match:
+                link_text = link_match.group(1)
+                link_url = link_match.group(2)
+                result.append({
+                    "type": "text",
+                    "text": link_text,
+                    "marks": [{"type": "link", "attrs": {"href": link_url}}]
+                })
+
+        last_end = match.end()
+
+    # Add remaining plain text
+    if last_end < len(text):
+        remaining = text[last_end:]
+        if remaining:
+            result.append({"type": "text", "text": remaining})
+
+    # If no matches found, return plain text
+    if not result:
+        result = [{"type": "text", "text": text}]
+
+    return result
 
 
 def _find_user_by_identifier(client: JiraClient, identifier: str) -> Optional[str]:
