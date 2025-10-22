@@ -70,14 +70,38 @@ def _find_user_by_identifier(client: JiraClient, identifier: str) -> Optional[st
     """
     try:
         # If it looks like an account ID, return it
-        if identifier.startswith("557058:") or identifier.startswith("qm:"):
+        if identifier.startswith("557058:") or identifier.startswith("qm:") or identifier.startswith("712020:"):
             return identifier
-        
-        # Search for user
-        users = client.client.search_users(identifier)
-        if users:
-            return users[0].accountId
-        
+
+        # Special case: "me" or "myself" returns current user
+        if identifier.lower() in ["me", "myself"]:
+            myself = client.client.myself()
+            return myself["accountId"]
+
+        # For GDPR strict mode, use the user picker API which supports query parameter
+        # This works better than search_users which uses deprecated username parameter
+        try:
+            url = f"{client.client._options['server']}/rest/api/3/user/search"
+            params = {"query": identifier, "maxResults": 50}
+            response = client.client._session.get(url, params=params)
+            response.raise_for_status()
+            users = response.json()
+
+            if users:
+                # Try to find exact match first (by email or display name)
+                for user in users:
+                    if (user.get("emailAddress", "").lower() == identifier.lower() or
+                        user.get("displayName", "").lower() == identifier.lower()):
+                        return user["accountId"]
+
+                # If no exact match, return first result
+                return users[0]["accountId"]
+        except Exception:
+            # Fallback to old method if new API fails
+            users = client.client.search_users(identifier)
+            if users:
+                return users[0].accountId
+
         return None
     except Exception:
         return None
