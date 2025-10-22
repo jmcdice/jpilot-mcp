@@ -17,10 +17,12 @@ Built with [FastMCP](https://github.com/jlowin/fastmcp) and the official Jira Py
 ## Recent Updates
 
 ### v0.2.0 (Latest)
+- ✨ **Update Issue Tool**: New `update_jira_issue` tool to modify existing issues (link to epics, change assignee, priority, etc.)
 - ✨ **ADF Parser**: Descriptions and comments now display as readable plain text instead of raw objects
 - ✨ **Default Project**: Set `JIRA_DEFAULT_PROJECT` to avoid specifying project in every command
 - 🐛 **Fixed List Returns**: All list-returning tools now properly return complete results (no more truncation)
 - 📝 **Better Formatting**: Rich text content (bold, lists, code blocks) is preserved in plain text format
+- 📝 **Improved Tool Descriptions**: Create tools now emphasize using epic_key/parent_key for proper issue linking
 
 ### v0.1.0
 - Initial release with 11 core Jira tools
@@ -29,7 +31,7 @@ Built with [FastMCP](https://github.com/jlowin/fastmcp) and the official Jira Py
 
 ## Features
 
-- **11 Focused Tools**: List projects, create issues, add comments, transition statuses, and more
+- **12 Focused Tools**: List projects, create issues, update issues, add comments, transition statuses, and more
 - **Discovery Tools**: List projects, issue types, and issues with flexible filtering
 - **Issue Reading**: Get detailed issue information including comments, subtasks, and parent relationships
 - **Issue Creation**: Create epics, stories, tasks, and subtasks with proper hierarchy and markdown support
@@ -396,6 +398,19 @@ jpilot-mcp exposes 11 MCP tools for Jira operations:
 - Returns: Comment ID, created timestamp, and author
 - Example: "Add a comment to PROJ-123 saying 'Fixed in latest release'"
 
+**`update_jira_issue`**
+- Updates an existing issue's fields
+- Parameters:
+  - `issue_key` (required)
+  - `summary` (optional: new title)
+  - `description` (optional: new description, markdown supported)
+  - `assignee` (optional: display name, email, or 'unassigned')
+  - `priority` (optional: 'High', 'Medium', 'Low')
+  - `epic_link` (optional: epic key to link this issue to)
+  - `labels` (optional: list of label strings)
+- Returns: Updated issue details
+- Example: "Link CIT-124 to epic CIT-123" or "Change assignee of PROJ-123 to john@example.com"
+
 **`transition_jira_issue`**
 - Changes the status of an issue
 - Parameters:
@@ -427,6 +442,9 @@ Once configured, you can interact with Jira naturally through your MCP client.
 
 **Managing Issues:**
 - "Show me details for PROJ-123"
+- "Link CIT-124 to epic CIT-123"
+- "Change the assignee of PROJ-123 to john@example.com"
+- "Set priority of PROJ-123 to High"
 - "Add a comment to PROJ-123: 'Fixed in latest release'"
 - "What status transitions are available for PROJ-123?"
 - "Move PROJ-123 to In Progress"
