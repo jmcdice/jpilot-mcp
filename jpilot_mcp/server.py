@@ -22,12 +22,19 @@ from .core import (
     add_comment,
     update_issue,
     transition_issue,
+    get_epics_and_stories,
+    format_epics_stories_tree,
 )
+
 
 # Create FastMCP server
 mcp = FastMCP(
     name="jpilot-mcp",
-    instructions="MCP server for Jira integration. Provides tools for managing Jira issues, epics, stories, tasks, and subtasks.",
+    instructions=(
+        "MCP server for Jira integration. Provides tools for managing Jira issues, epics, stories, tasks, and subtasks. "
+        "Style: respond concisely without proposing extra actions or options (e.g., do not ask about exporting to CSV or filtering) "
+        "unless explicitly requested. No emojis in outputs."
+    ),
 )
 
 # Global Jira client (initialized on first use)
@@ -139,6 +146,101 @@ def list_jira_issues(
     client = get_client()
     issues = list_issues(client, project_key, status, assignee, issue_type, max_results)
     return {"issues": issues, "count": len(issues), "project": project_key}
+
+
+
+@mcp.tool()
+def get_jira_project_tree(project_key: str | None = None) -> dict[str, Any]:
+    """Build an Epics → Stories tree for a Jira project.
+
+    Usage examples (natural language triggers agents should map to this tool):
+    - "Jira tree for CIT"
+    - "Show project tree CIT"
+    - "Epic story tree for CIT"
+
+    Output format structure (enforce this when displaying):
+    - Header: "● PROJECT: Epics → Stories (tree)"
+    - Blank line
+    - Epic line: [KEY](url) — Summary [Status] — Assignee: Name
+    - Story lines with tree connectors (├── or └──)
+    - Blank line after each epic's stories
+    - Next epic...
+
+    Example:
+        ● CIT: Epics → Stories (tree)
+
+        [CIT-10](url) — Epic Title [In Progress] — Assignee: John Doe
+        ├── [CIT-3](url) — Story 1 [Done] — Assignee: Jane
+        └── [CIT-5](url) — Story 2 [Done] — Assignee: Bob
+
+        [CIT-78](url) — Another Epic [In Progress] — Assignee: Alice
+        └── [CIT-118](url) — Story [Submitted] — Assignee: Charlie
+
+    Behavior:
+    - Do not ask follow-up questions or propose extra options (e.g., exporting to CSV or filtering) unless explicitly requested.
+    - Preserve emojis from Jira issue titles.
+    - Use Markdown links for issue keys.
+
+    Args:
+        project_key: Project key (e.g., 'PROJ'). If not provided, uses JIRA_DEFAULT_PROJECT from config.
+
+    Returns:
+        Dictionary with:
+          - project: project key
+          - tree: formatted text tree (Markdown with consistent spacing)
+          - epics: structured list of epics, each with its stories
+          - epic_count: number of epics found
+          - story_count: total number of stories across all epics
+    """
+    # Use default project if not specified
+    if not project_key:
+        from .config import get_jira_config
+        config = get_jira_config()
+        if not config.default_project:
+            raise ValueError(
+                "No project_key provided and no JIRA_DEFAULT_PROJECT configured. "
+                "Please either specify project_key or set JIRA_DEFAULT_PROJECT environment variable."
+            )
+        project_key = config.default_project
+
+    client = get_client()
+    epics = get_epics_and_stories(client, project_key)
+    tree_text = format_epics_stories_tree(project_key, epics)
+
+    story_count = sum(len(e.get("stories", [])) for e in epics)
+    return {
+        "project": project_key,
+        "tree": tree_text,
+        "epics": epics,
+        "epic_count": len(epics),
+        "story_count": story_count,
+    }
+
+@mcp.tool()
+def jira_tree(project_key: str | None = None) -> dict[str, Any]:
+    """Alias for get_jira_project_tree.
+
+    Natural language examples:
+    - "Jira tree for CIT"
+    - "Project tree CIT"
+
+    Behavior: no emojis; do not propose exporting/filtering unless explicitly asked.
+    """
+    return get_jira_project_tree(project_key)
+
+    client = get_client()
+    epics = get_epics_and_stories(client, project_key)
+    tree_text = format_epics_stories_tree(project_key, epics)
+
+    story_count = sum(len(e.get("stories", [])) for e in epics)
+    return {
+        "project": project_key,
+        "tree": tree_text,
+        "epics": epics,
+        "epic_count": len(epics),
+        "story_count": story_count,
+    }
+
 
 
 # ============================================================================

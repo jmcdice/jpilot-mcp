@@ -4,6 +4,8 @@ from .client import JiraClient, JiraConnectionError, JiraError, create_jira_clie
 from .projects import list_projects, get_project, get_issue_types
 from .search import search_issues, list_issues, get_issue, get_transitions
 from .adf_parser import adf_to_text, extract_text_from_jira_field
+from .tree import get_epics_and_stories, format_epics_stories_tree
+
 from .issues import (
     create_issue,
     create_epic,
@@ -59,6 +61,10 @@ __all__ = [
     # ADF Parser
     "adf_to_text",
     "extract_text_from_jira_field",
+    # Tree
+    "get_epics_and_stories",
+    "format_epics_stories_tree",
+
     # Issues
     "create_issue",
     "create_epic",
