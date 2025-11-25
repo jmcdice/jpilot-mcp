@@ -285,8 +285,11 @@ def create_jira_epic(
     summary: str,
     project_key: str | None = None,
     description: str | None = None,
+    assignee: str | None = None,
     components: list[str] | None = None,
     duedate: str | None = None,
+    labels: list[str] | None = None,
+    priority: str | None = None,
 ) -> dict[str, Any]:
     """Create a new Epic in Jira.
 
@@ -294,18 +297,28 @@ def create_jira_epic(
         summary: Epic summary/title
         project_key: Project key (e.g., 'PROJ'). If not provided, uses JIRA_DEFAULT_PROJECT from config.
         description: Optional epic description (markdown supported)
+        assignee: Optional assignee (display name, email, or account ID)
         components: Optional list of component names (e.g., ['Program/Project'])
         duedate: Optional due date in YYYY-MM-DD format (e.g., '2026-03-31')
+        labels: Optional list of labels/tags (e.g., ['automation', 'rfp'])
+        priority: Optional priority (e.g., 'High', 'Medium', 'Low')
 
     Returns:
         Created epic details with key and URL
 
-    Example:
+    Examples:
+        # Minimal epic
+        create_jira_epic(summary="New Feature")
+
+        # Epic with all common fields
         create_jira_epic(
             summary="Automated RFP Response System",
             description="Build an end-to-end automated system...",
+            assignee="joey.mcdonald@example.com",
             components=["Program/Project"],
-            duedate="2026-03-31"
+            duedate="2026-03-31",
+            labels=["automation", "rfp"],
+            priority="High"
         )
     """
     # Use default project if not specified
@@ -320,7 +333,17 @@ def create_jira_epic(
         project_key = config.default_project
 
     client = get_client()
-    return create_epic(client, project_key, summary, description, components, duedate)
+    return create_epic(
+        client,
+        project_key,
+        summary,
+        description,
+        assignee,
+        components,
+        duedate,
+        labels,
+        priority,
+    )
 
 
 @mcp.tool()

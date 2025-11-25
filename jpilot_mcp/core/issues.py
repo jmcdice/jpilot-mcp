@@ -368,8 +368,11 @@ def create_epic(
     project_key: str,
     summary: str,
     description: Optional[str] = None,
+    assignee: Optional[str] = None,
     components: Optional[list[str]] = None,
     duedate: Optional[str] = None,
+    labels: Optional[list[str]] = None,
+    priority: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create a new Epic.
 
@@ -378,8 +381,11 @@ def create_epic(
         project_key: Project key (e.g., 'PROJ')
         summary: Epic summary/title
         description: Optional epic description (markdown supported)
+        assignee: Optional assignee (display name, email, or account ID)
         components: Optional list of component names (e.g., ['Program/Project'])
         duedate: Optional due date in YYYY-MM-DD format (e.g., '2026-03-31')
+        labels: Optional list of labels/tags (e.g., ['automation', 'rfp'])
+        priority: Optional priority (e.g., 'High', 'Medium', 'Low')
 
     Returns:
         Dictionary with created epic details (key, url)
@@ -387,14 +393,26 @@ def create_epic(
     Raises:
         JiraError: If epic creation fails
     """
+    extra_fields = {}
+
+    # Add labels if provided
+    if labels:
+        extra_fields["labels"] = labels
+
+    # Add priority if provided
+    if priority:
+        extra_fields["priority"] = {"name": priority}
+
     return create_issue(
         client=client,
         project_key=project_key,
         summary=summary,
         issue_type="Epic",
         description=description,
+        assignee=assignee,
         components=components,
         duedate=duedate,
+        **extra_fields,
     )
 
 
