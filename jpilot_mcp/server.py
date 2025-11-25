@@ -285,6 +285,8 @@ def create_jira_epic(
     summary: str,
     project_key: str | None = None,
     description: str | None = None,
+    components: list[str] | None = None,
+    duedate: str | None = None,
 ) -> dict[str, Any]:
     """Create a new Epic in Jira.
 
@@ -292,9 +294,19 @@ def create_jira_epic(
         summary: Epic summary/title
         project_key: Project key (e.g., 'PROJ'). If not provided, uses JIRA_DEFAULT_PROJECT from config.
         description: Optional epic description (markdown supported)
+        components: Optional list of component names (e.g., ['Program/Project'])
+        duedate: Optional due date in YYYY-MM-DD format (e.g., '2026-03-31')
 
     Returns:
         Created epic details with key and URL
+
+    Example:
+        create_jira_epic(
+            summary="Automated RFP Response System",
+            description="Build an end-to-end automated system...",
+            components=["Program/Project"],
+            duedate="2026-03-31"
+        )
     """
     # Use default project if not specified
     if not project_key:
@@ -308,7 +320,7 @@ def create_jira_epic(
         project_key = config.default_project
 
     client = get_client()
-    return create_epic(client, project_key, summary, description)
+    return create_epic(client, project_key, summary, description, components, duedate)
 
 
 @mcp.tool()

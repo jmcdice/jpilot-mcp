@@ -291,6 +291,9 @@ def create_issue(
     description: Optional[str] = None,
     parent_key: Optional[str] = None,
     assignee: Optional[str] = None,
+    components: Optional[list[str]] = None,
+    duedate: Optional[str] = None,
+    **extra_fields,
 ) -> Dict[str, Any]:
     """Create a new Jira issue.
 
@@ -302,6 +305,9 @@ def create_issue(
         description: Optional issue description (markdown supported)
         parent_key: Optional parent issue key (for stories under epics or subtasks)
         assignee: Optional assignee (display name, email, or account ID)
+        components: Optional list of component names (e.g., ['Program/Project'])
+        duedate: Optional due date in YYYY-MM-DD format (e.g., '2026-03-31')
+        **extra_fields: Additional custom fields to pass to Jira
 
     Returns:
         Dictionary with created issue details (key, url)
@@ -316,15 +322,15 @@ def create_issue(
             "summary": summary,
             "issuetype": {"name": issue_type},
         }
-        
+
         # Add description if provided
         if description:
             fields["description"] = _markdown_to_adf(description)
-        
+
         # Add parent if provided
         if parent_key:
             fields["parent"] = {"key": parent_key}
-        
+
         # Add assignee if provided
         if assignee:
             account_id = _find_user_by_identifier(client, assignee)
@@ -333,10 +339,21 @@ def create_issue(
             else:
                 # If user not found, log but don't fail
                 pass
-        
+
+        # Add components if provided
+        if components:
+            fields["components"] = [{"name": comp} for comp in components]
+
+        # Add due date if provided
+        if duedate:
+            fields["duedate"] = duedate
+
+        # Add any extra custom fields
+        fields.update(extra_fields)
+
         # Create the issue
         new_issue = client.client.create_issue(fields=fields)
-        
+
         return {
             "key": new_issue.key,
             "url": f"{client.config.server}/browse/{new_issue.key}",
@@ -351,6 +368,8 @@ def create_epic(
     project_key: str,
     summary: str,
     description: Optional[str] = None,
+    components: Optional[list[str]] = None,
+    duedate: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create a new Epic.
 
@@ -359,6 +378,8 @@ def create_epic(
         project_key: Project key (e.g., 'PROJ')
         summary: Epic summary/title
         description: Optional epic description (markdown supported)
+        components: Optional list of component names (e.g., ['Program/Project'])
+        duedate: Optional due date in YYYY-MM-DD format (e.g., '2026-03-31')
 
     Returns:
         Dictionary with created epic details (key, url)
@@ -372,6 +393,8 @@ def create_epic(
         summary=summary,
         issue_type="Epic",
         description=description,
+        components=components,
+        duedate=duedate,
     )
 
 
