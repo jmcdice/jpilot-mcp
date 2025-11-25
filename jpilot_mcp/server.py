@@ -12,6 +12,7 @@ from .core import (
     create_jira_client,
     list_projects,
     get_issue_types,
+    get_project_components,
     list_issues,
     get_issue,
     get_transitions,
@@ -22,8 +23,8 @@ from .core import (
     add_comment,
     update_issue,
     transition_issue,
-    get_epics_and_stories,
-    format_epics_stories_tree,
+    get_epics_and_children,
+    format_epics_children_tree,
 )
 
 
@@ -110,6 +111,39 @@ def get_jira_issue_types(project_key: str | None = None) -> dict[str, Any]:
 
 
 @mcp.tool()
+def get_jira_project_components(project_key: str | None = None) -> dict[str, Any]:
+    """Get available components for a Jira project.
+
+    Components are used to categorize issues within a project (e.g., 'Program/Project', 'Infrastructure', 'Documentation').
+    This tool helps you discover what components are available before creating issues.
+
+    Args:
+        project_key: Project key (e.g., 'PROJ'). If not provided, uses JIRA_DEFAULT_PROJECT from config.
+
+    Returns:
+        Dictionary with 'components' key containing list of all available components with id, name, and description
+
+    Example:
+        get_jira_project_components('TSSE')
+        # Returns: {"components": [{"id": "10001", "name": "Program/Project", "description": "..."}], ...}
+    """
+    # Use default project if not specified
+    if not project_key:
+        from .config import get_jira_config
+        config = get_jira_config()
+        if not config.default_project:
+            raise ValueError(
+                "No project_key provided and no JIRA_DEFAULT_PROJECT configured. "
+                "Please either specify project_key or set JIRA_DEFAULT_PROJECT environment variable."
+            )
+        project_key = config.default_project
+
+    client = get_client()
+    components = get_project_components(client, project_key)
+    return {"components": components, "count": len(components), "project": project_key}
+
+
+@mcp.tool()
 def list_jira_issues(
     project_key: str | None = None,
     status: str | None = None,
@@ -151,35 +185,45 @@ def list_jira_issues(
 
 @mcp.tool()
 def get_jira_project_tree(project_key: str | None = None) -> dict[str, Any]:
-    """Build an Epics → Stories tree for a Jira project.
+    """Build an Epics → Children tree for a Jira project.
+
+    Auto-detects what issue types are children of Epics (Stories, Tasks, etc.)
+    and builds a hierarchical tree view.
 
     Usage examples (natural language triggers agents should map to this tool):
     - "Jira tree for CIT"
     - "Show project tree CIT"
     - "Epic story tree for CIT"
 
-    Output format structure (enforce this when displaying):
-    - Header: "● PROJECT: Epics → Stories (tree)"
-    - Blank line
+    **CRITICAL DISPLAY INSTRUCTIONS:**
+    - ALWAYS display the COMPLETE 'tree' field from the response
+    - DO NOT truncate, summarize, or sample the tree output
+    - DO NOT add summaries or additional commentary unless explicitly requested
+    - The user wants to see ALL epics and ALL children every time
+    - Simply output the entire 'tree' string as-is
+
+    Output format structure:
+    - Header: "● PROJECT: Epics → Children (tree)" (or "Stories" or "Tasks" if only one type)
+    - Blank line before each epic
     - Epic line: [KEY](url) — Summary [Status] — Assignee: Name
-    - Story lines with tree connectors (├── or └──)
-    - Blank line after each epic's stories
-    - Next epic...
+    - Child lines with tree connectors (├── or └──)
+    - Repeat for ALL epics
 
     Example:
         ● CIT: Epics → Stories (tree)
 
         [CIT-10](url) — Epic Title [In Progress] — Assignee: John Doe
-        ├── [CIT-3](url) — Story 1 [Done] — Assignee: Jane
-        └── [CIT-5](url) — Story 2 [Done] — Assignee: Bob
+        ├── CIT-3 — Story 1 [Done] — Assignee: Jane
+        └── CIT-5 — Story 2 [Done] — Assignee: Bob
 
-        [CIT-78](url) — Another Epic [In Progress] — Assignee: Alice
-        └── [CIT-118](url) — Story [Submitted] — Assignee: Charlie
+        [TSSE-891](url) — WizSig Platform Development [In Progress] — Assignee: Joey
+        ├── TSSE-100 — Setup deployment [Done] — Assignee: Joey
+        └── TSSE-101 — Configure CI/CD [In Progress] — Assignee: Joey
 
     Behavior:
-    - Do not ask follow-up questions or propose extra options (e.g., exporting to CSV or filtering) unless explicitly requested.
-    - Preserve emojis from Jira issue titles.
-    - Use Markdown links for issue keys.
+    - Display the complete tree without truncation
+    - Do not ask follow-up questions or propose extra options unless explicitly requested
+    - Preserve emojis from Jira issue titles
 
     Args:
         project_key: Project key (e.g., 'PROJ'). If not provided, uses JIRA_DEFAULT_PROJECT from config.
@@ -188,9 +232,9 @@ def get_jira_project_tree(project_key: str | None = None) -> dict[str, Any]:
         Dictionary with:
           - project: project key
           - tree: formatted text tree (Markdown with consistent spacing)
-          - epics: structured list of epics, each with its stories
+          - epics: structured list of epics, each with its children
           - epic_count: number of epics found
-          - story_count: total number of stories across all epics
+          - child_count: total number of children across all epics
     """
     # Use default project if not specified
     if not project_key:
@@ -204,16 +248,16 @@ def get_jira_project_tree(project_key: str | None = None) -> dict[str, Any]:
         project_key = config.default_project
 
     client = get_client()
-    epics = get_epics_and_stories(client, project_key)
-    tree_text = format_epics_stories_tree(project_key, epics)
+    epics = get_epics_and_children(client, project_key)
+    tree_text = format_epics_children_tree(project_key, epics)
 
-    story_count = sum(len(e.get("stories", [])) for e in epics)
+    child_count = sum(len(e.get("children", [])) for e in epics)
     return {
         "project": project_key,
         "tree": tree_text,
         "epics": epics,
         "epic_count": len(epics),
-        "story_count": story_count,
+        "child_count": child_count,
     }
 
 @mcp.tool()
@@ -224,22 +268,10 @@ def jira_tree(project_key: str | None = None) -> dict[str, Any]:
     - "Jira tree for CIT"
     - "Project tree CIT"
 
-    Behavior: no emojis; do not propose exporting/filtering unless explicitly asked.
+    **CRITICAL:** ALWAYS display the COMPLETE 'tree' field from the response.
+    DO NOT truncate or summarize. The user wants to see ALL epics and children.
     """
     return get_jira_project_tree(project_key)
-
-    client = get_client()
-    epics = get_epics_and_stories(client, project_key)
-    tree_text = format_epics_stories_tree(project_key, epics)
-
-    story_count = sum(len(e.get("stories", [])) for e in epics)
-    return {
-        "project": project_key,
-        "tree": tree_text,
-        "epics": epics,
-        "epic_count": len(epics),
-        "story_count": story_count,
-    }
 
 
 
@@ -287,16 +319,48 @@ def create_jira_epic(
     summary: str,
     project_key: str | None = None,
     description: str | None = None,
+    assignee: str | None = None,
+    components: list[str] | None = None,
+    duedate: str | None = None,
+    labels: list[str] | None = None,
+    priority: str | None = None,
 ) -> dict[str, Any]:
     """Create a new Epic in Jira.
 
+    **Note:** Different Jira projects may require different fields. If creation fails with
+    "Field X is required", provide that field. Use get_jira_project_components() to discover
+    available component names for your project.
+
     Args:
-        summary: Epic summary/title
+        summary: Epic summary/title (REQUIRED)
         project_key: Project key (e.g., 'PROJ'). If not provided, uses JIRA_DEFAULT_PROJECT from config.
         description: Optional epic description (markdown supported)
+        assignee: Optional assignee (display name, email, or account ID)
+        components: Optional list of component names. Use get_jira_project_components() to see available options.
+        duedate: Optional due date in YYYY-MM-DD format (e.g., '2026-03-31')
+        labels: Optional list of labels/tags (e.g., ['automation', 'rfp'])
+        priority: Optional priority (e.g., 'High', 'Medium', 'Low')
 
     Returns:
         Created epic details with key and URL
+
+    Examples:
+        # Minimal epic (works if project has no required fields)
+        create_jira_epic(summary="New Feature")
+
+        # Epic with commonly required fields
+        create_jira_epic(
+            summary="Automated RFP Response System",
+            description="Build an end-to-end automated system...",
+            assignee="joey.mcdonald@example.com",
+            components=["Program/Project"],  # Check available components first!
+            duedate="2026-03-31",
+            priority="High"
+        )
+
+        # Discover available components first
+        # components = get_jira_project_components('TSSE')
+        # Then use exact component name from the list
     """
     # Use default project if not specified
     if not project_key:
@@ -310,7 +374,17 @@ def create_jira_epic(
         project_key = config.default_project
 
     client = get_client()
-    return create_epic(client, project_key, summary, description)
+    return create_epic(
+        client,
+        project_key,
+        summary,
+        description,
+        assignee,
+        components,
+        duedate,
+        labels,
+        priority,
+    )
 
 
 @mcp.tool()

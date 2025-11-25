@@ -1,13 +1,16 @@
-"""Utilities for building project trees (Epics → Stories).
+"""Utilities for building project trees (Epics → Children).
 
-This module provides helpers to fetch epics and their child stories and to
-produce a human‑readable tree representation similar to:
+This module provides helpers to fetch epics and their child issues (Stories, Tasks, etc.)
+and to produce a human‑readable tree representation similar to:
 
-  ● PROJ: Epics → Stories (tree)
+  ● PROJ: Epics → Children (tree)
 
      • PROJ-1 — Epic title [In Progress]
-        • PROJ-2 — Story title [Done]
-        • (no child stories yet)
+        • PROJ-2 — Story/Task title [Done]
+        • (no children yet)
+
+The tree auto-detects what issue types are children of Epics in the project,
+supporting both Story-based and Task-based workflows.
 """
 from __future__ import annotations
 
@@ -46,31 +49,43 @@ def _find_epic_link_field_id(client: JiraClient) -> Optional[str]:
     return None
 
 
-def get_epics_and_stories(
+def get_epics_and_children(
     client: JiraClient,
     project_key: str,
 ) -> List[Dict[str, Any]]:
-    """Fetch all epics in a project and their child stories.
+    """Fetch all epics in a project and their child issues (auto-detected).
+
+    Auto-detects what issue types are children of Epics by querying all
+    non-Epic, non-Subtask issues and checking their parent relationships.
+
+    This supports projects using:
+    - Epic → Story (traditional Agile/Scrum)
+    - Epic → Task (Kanban/operational teams)
+    - Epic → mixed (Story + Task + other types)
 
     Attempts both linking strategies:
-    - Team-managed: stories have `parent` set to the epic
-    - Company-managed: stories use the custom "Epic Link" field
+    - Team-managed: children have `parent` set to the epic
+    - Company-managed: children use the custom "Epic Link" field
 
-    Returns a list of epics keeping board/rank order, each with `stories`.
-    Each epic dict has: key, summary, status, url, stories: List[dict].
+    Returns a list of epics keeping board/rank order, each with `children`.
+    Each epic dict has: key, summary, status, url, assignee, children: List[dict].
     """
-    # Fetch epics and stories; keep JIRA issue objects to inspect fields
+    # Fetch all epics
     epics = search_issues(
         client,
         jql=f'project = "{project_key}" AND issuetype = "Epic" ORDER BY rank ASC',
         max_results=1000,
     )
-    stories = search_issues(
+
+    # Fetch all potential child issues (non-Epic, non-Subtask)
+    # This auto-detects whether the project uses Story, Task, or other types
+    children = search_issues(
         client,
-        jql=f'project = "{project_key}" AND issuetype = "Story" ORDER BY rank ASC',
+        jql=f'project = "{project_key}" AND issuetype != "Epic" AND issuetype != "Subtask" AND issuetype != "Sub-task" ORDER BY rank ASC',
         max_results=2000,
     )
 
+    # Build epic map with empty children lists
     epic_map: Dict[str, Dict[str, Any]] = {}
     for e in epics:
         epic_map[e.key] = {
@@ -79,22 +94,24 @@ def get_epics_and_stories(
             "status": e.fields.status.name,
             "assignee": e.fields.assignee.displayName if getattr(e.fields, "assignee", None) else "Unassigned",
             "url": f"{client.config.server}/browse/{e.key}",
-            "stories": [],
+            "children": [],
         }
 
     epic_link_field_id = _find_epic_link_field_id(client)
 
-    for s in stories:
+    # Process each potential child issue to find its parent epic
+    for child in children:
         parent_key: Optional[str] = None
+
         # Strategy 1: team-managed projects often populate `parent`
-        parent = _safe_getattr(s.fields, "parent")
+        parent = _safe_getattr(child.fields, "parent")
         if parent and _safe_getattr(parent, "key"):
             parent_key = parent.key
 
         # Strategy 2: company-managed projects: check Epic Link custom field
         if not parent_key and epic_link_field_id:
             try:
-                val = getattr(s.fields, epic_link_field_id)
+                val = getattr(child.fields, epic_link_field_id)
             except Exception:
                 val = None
             if val:
@@ -111,14 +128,16 @@ def get_epics_and_stories(
                         except Exception:
                             parent_key = None
 
+        # If this child has a parent epic in our map, add it
         if parent_key and parent_key in epic_map:
-            epic_map[parent_key]["stories"].append(
+            epic_map[parent_key]["children"].append(
                 {
-                    "key": s.key,
-                    "summary": s.fields.summary,
-                    "status": s.fields.status.name,
-                    "assignee": s.fields.assignee.displayName if getattr(s.fields, "assignee", None) else "Unassigned",
-                    "url": f"{client.config.server}/browse/{s.key}",
+                    "key": child.key,
+                    "summary": child.fields.summary,
+                    "status": child.fields.status.name,
+                    "issue_type": child.fields.issuetype.name,
+                    "assignee": child.fields.assignee.displayName if getattr(child.fields, "assignee", None) else "Unassigned",
+                    "url": f"{client.config.server}/browse/{child.key}",
                 }
             )
 
@@ -127,29 +146,45 @@ def get_epics_and_stories(
     return ordered_epics
 
 
-def format_epics_stories_tree(project_key: str, epics: List[Dict[str, Any]]) -> str:
-    """Format a list of epics-with-stories as a tree string.
+def format_epics_children_tree(project_key: str, epics: List[Dict[str, Any]]) -> str:
+    """Format a list of epics-with-children as a tree string.
 
     Consistent structure:
     - Header line
     - Blank line
     - Epic line (Markdown link, summary, status, assignee)
-    - Story lines with tree connectors (├── for middle items, └── for last)
+    - Child lines with tree connectors (├── for middle items, └── for last)
     - Blank line after each epic
     - Repeat for next epic
 
     Example:
-        ● PROJ: Epics → Stories (tree)
+        ● PROJ: Epics → Children (tree)
 
         [PROJ-1](url) — Epic Title [Status] — Assignee: Name
         ├── [PROJ-2](url) — Story 1 [Status] — Assignee: Name
-        └── [PROJ-3](url) — Story 2 [Status] — Assignee: Name
+        └── [PROJ-3](url) — Task 2 [Status] — Assignee: Name
 
         [PROJ-4](url) — Another Epic [Status] — Assignee: Name
-        └── (no child stories yet)
+        └── (no children yet)
     """
     lines: List[str] = []
-    lines.append(f"● {project_key}: Epics → Stories (tree)")
+
+    # Determine what child types are present across all epics
+    child_types = set()
+    for epic in epics:
+        for child in epic.get("children", []):
+            child_types.add(child.get("issue_type", ""))
+
+    # Create a descriptive header based on what we found
+    if child_types:
+        if len(child_types) == 1:
+            child_type_label = list(child_types)[0] + "s"
+        else:
+            child_type_label = "Children"
+    else:
+        child_type_label = "Children"
+
+    lines.append(f"● {project_key}: Epics → {child_type_label} (tree)")
     lines.append("")
 
     for epic in epics:
@@ -158,22 +193,55 @@ def format_epics_stories_tree(project_key: str, epics: List[Dict[str, Any]]) -> 
         e_status = epic.get("status", "")
         e_url = epic.get("url", "")
         e_assignee = epic.get("assignee", "Unassigned")
+
+        # Add blank line before each epic for better readability
+        lines.append("")
         lines.append(f"[{e_key}]({e_url}) — {e_summary} [{e_status}] — Assignee: {e_assignee}")
-        stories = epic.get("stories", []) or []
-        if stories:
-            for i, s in enumerate(stories):
-                connector = "└──" if i == len(stories) - 1 else "├──"
-                s_key = s.get("key", "")
-                s_summary = s.get("summary", "")
-                s_status = s.get("status", "")
-                s_url = s.get("url", "")
-                s_assignee = s.get("assignee", "Unassigned")
+
+        children = epic.get("children", []) or []
+        if children:
+            for i, child in enumerate(children):
+                connector = "└──" if i == len(children) - 1 else "├──"
+                c_key = child.get("key", "")
+                c_summary = child.get("summary", "")
+                c_status = child.get("status", "")
+                c_url = child.get("url", "")
+                c_assignee = child.get("assignee", "Unassigned")
                 lines.append(
-                    f"{connector} [{s_key}]({s_url}) — {s_summary} [{s_status}] — Assignee: {s_assignee}"
+                    f"{connector} {c_key} — {c_summary} [{c_status}] — Assignee: {c_assignee}"
                 )
         else:
-            lines.append("└── (no child stories yet)")
-        lines.append("")
+            lines.append("└── (no children yet)")
 
     return "\n".join(lines)
+
+
+# Backwards compatibility alias
+def get_epics_and_stories(client: JiraClient, project_key: str) -> List[Dict[str, Any]]:
+    """Deprecated: Use get_epics_and_children instead.
+
+    This function is maintained for backwards compatibility but now uses
+    the auto-detect logic to find all child issue types.
+    """
+    epics = get_epics_and_children(client, project_key)
+    # Rename 'children' to 'stories' for backwards compatibility
+    for epic in epics:
+        epic["stories"] = epic.pop("children", [])
+    return epics
+
+
+def format_epics_stories_tree(project_key: str, epics: List[Dict[str, Any]]) -> str:
+    """Deprecated: Use format_epics_children_tree instead.
+
+    This function is maintained for backwards compatibility.
+    """
+    # Handle both old format (stories) and new format (children)
+    normalized_epics = []
+    for epic in epics:
+        normalized = epic.copy()
+        if "stories" in normalized and "children" not in normalized:
+            normalized["children"] = normalized.pop("stories")
+        normalized_epics.append(normalized)
+
+    return format_epics_children_tree(project_key, normalized_epics)
 

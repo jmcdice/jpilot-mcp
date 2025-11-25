@@ -79,10 +79,10 @@ def get_issue_types(client: JiraClient, project_key: str) -> List[Dict[str, Any]
     try:
         # Get project to ensure it exists
         project = client.client.project(project_key)
-        
+
         # Get issue types for the project
         issue_types = client.client.issue_types()
-        
+
         # Filter to only those available in this project
         # Note: In Jira API v3, we need to check project's issue types
         project_issue_types = []
@@ -93,10 +93,43 @@ def get_issue_types(client: JiraClient, project_key: str) -> List[Dict[str, Any]
                 "description": getattr(issue_type, "description", ""),
                 "subtask": getattr(issue_type, "subtask", False),
             })
-        
+
         return project_issue_types
     except JIRAError as e:
         if e.status_code == 404:
             raise JiraError(f"Project '{project_key}' not found") from e
         raise JiraError(f"Failed to get issue types for '{project_key}': {e.text}") from e
+
+
+def get_project_components(client: JiraClient, project_key: str) -> List[Dict[str, Any]]:
+    """Get available components for a project.
+
+    Args:
+        client: Jira client instance
+        project_key: Project key (e.g., 'PROJ')
+
+    Returns:
+        List of component dictionaries with id, name, and description
+
+    Raises:
+        JiraError: If unable to fetch components
+    """
+    try:
+        # Get project to ensure it exists and get its components
+        project = client.client.project(project_key)
+
+        components = []
+        if hasattr(project, "components") and project.components:
+            for comp in project.components:
+                components.append({
+                    "id": comp.id,
+                    "name": comp.name,
+                    "description": getattr(comp, "description", ""),
+                })
+
+        return components
+    except JIRAError as e:
+        if e.status_code == 404:
+            raise JiraError(f"Project '{project_key}' not found") from e
+        raise JiraError(f"Failed to get components for '{project_key}': {e.text}") from e
 

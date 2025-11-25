@@ -1,10 +1,15 @@
 """Core Jira functionality."""
 
 from .client import JiraClient, JiraConnectionError, JiraError, create_jira_client
-from .projects import list_projects, get_project, get_issue_types
+from .projects import list_projects, get_project, get_issue_types, get_project_components
 from .search import search_issues, list_issues, get_issue, get_transitions
 from .adf_parser import adf_to_text, extract_text_from_jira_field
-from .tree import get_epics_and_stories, format_epics_stories_tree
+from .tree import (
+    get_epics_and_children,
+    format_epics_children_tree,
+    get_epics_and_stories,  # Backwards compatibility
+    format_epics_stories_tree,  # Backwards compatibility
+)
 
 from .issues import (
     create_issue,
@@ -53,6 +58,7 @@ __all__ = [
     "list_projects",
     "get_project",
     "get_issue_types",
+    "get_project_components",
     # Search
     "search_issues",
     "list_issues",
@@ -62,8 +68,10 @@ __all__ = [
     "adf_to_text",
     "extract_text_from_jira_field",
     # Tree
-    "get_epics_and_stories",
-    "format_epics_stories_tree",
+    "get_epics_and_children",
+    "format_epics_children_tree",
+    "get_epics_and_stories",  # Backwards compatibility
+    "format_epics_stories_tree",  # Backwards compatibility
 
     # Issues
     "create_issue",
