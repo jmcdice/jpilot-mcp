@@ -22,8 +22,8 @@ from .core import (
     add_comment,
     update_issue,
     transition_issue,
-    get_epics_and_stories,
-    format_epics_stories_tree,
+    get_epics_and_children,
+    format_epics_children_tree,
 )
 
 
@@ -151,7 +151,10 @@ def list_jira_issues(
 
 @mcp.tool()
 def get_jira_project_tree(project_key: str | None = None) -> dict[str, Any]:
-    """Build an Epics → Stories tree for a Jira project.
+    """Build an Epics → Children tree for a Jira project.
+
+    Auto-detects what issue types are children of Epics (Stories, Tasks, etc.)
+    and builds a hierarchical tree view.
 
     Usage examples (natural language triggers agents should map to this tool):
     - "Jira tree for CIT"
@@ -159,11 +162,11 @@ def get_jira_project_tree(project_key: str | None = None) -> dict[str, Any]:
     - "Epic story tree for CIT"
 
     Output format structure (enforce this when displaying):
-    - Header: "● PROJECT: Epics → Stories (tree)"
+    - Header: "● PROJECT: Epics → Children (tree)" (or "Stories" or "Tasks" if only one type)
     - Blank line
     - Epic line: [KEY](url) — Summary [Status] — Assignee: Name
-    - Story lines with tree connectors (├── or └──)
-    - Blank line after each epic's stories
+    - Child lines with tree connectors (├── or └──)
+    - Blank line after each epic's children
     - Next epic...
 
     Example:
@@ -173,8 +176,11 @@ def get_jira_project_tree(project_key: str | None = None) -> dict[str, Any]:
         ├── [CIT-3](url) — Story 1 [Done] — Assignee: Jane
         └── [CIT-5](url) — Story 2 [Done] — Assignee: Bob
 
-        [CIT-78](url) — Another Epic [In Progress] — Assignee: Alice
-        └── [CIT-118](url) — Story [Submitted] — Assignee: Charlie
+        ● TSSE: Epics → Tasks (tree)
+
+        [TSSE-891](url) — WizSig Platform Development [In Progress] — Assignee: Joey
+        ├── [TSSE-100](url) — Setup deployment [Done] — Assignee: Joey
+        └── [TSSE-101](url) — Configure CI/CD [In Progress] — Assignee: Joey
 
     Behavior:
     - Do not ask follow-up questions or propose extra options (e.g., exporting to CSV or filtering) unless explicitly requested.
@@ -188,9 +194,9 @@ def get_jira_project_tree(project_key: str | None = None) -> dict[str, Any]:
         Dictionary with:
           - project: project key
           - tree: formatted text tree (Markdown with consistent spacing)
-          - epics: structured list of epics, each with its stories
+          - epics: structured list of epics, each with its children
           - epic_count: number of epics found
-          - story_count: total number of stories across all epics
+          - child_count: total number of children across all epics
     """
     # Use default project if not specified
     if not project_key:
@@ -204,16 +210,16 @@ def get_jira_project_tree(project_key: str | None = None) -> dict[str, Any]:
         project_key = config.default_project
 
     client = get_client()
-    epics = get_epics_and_stories(client, project_key)
-    tree_text = format_epics_stories_tree(project_key, epics)
+    epics = get_epics_and_children(client, project_key)
+    tree_text = format_epics_children_tree(project_key, epics)
 
-    story_count = sum(len(e.get("stories", [])) for e in epics)
+    child_count = sum(len(e.get("children", [])) for e in epics)
     return {
         "project": project_key,
         "tree": tree_text,
         "epics": epics,
         "epic_count": len(epics),
-        "story_count": story_count,
+        "child_count": child_count,
     }
 
 @mcp.tool()
@@ -227,19 +233,6 @@ def jira_tree(project_key: str | None = None) -> dict[str, Any]:
     Behavior: no emojis; do not propose exporting/filtering unless explicitly asked.
     """
     return get_jira_project_tree(project_key)
-
-    client = get_client()
-    epics = get_epics_and_stories(client, project_key)
-    tree_text = format_epics_stories_tree(project_key, epics)
-
-    story_count = sum(len(e.get("stories", [])) for e in epics)
-    return {
-        "project": project_key,
-        "tree": tree_text,
-        "epics": epics,
-        "epic_count": len(epics),
-        "story_count": story_count,
-    }
 
 
 
