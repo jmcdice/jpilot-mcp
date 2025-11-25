@@ -193,6 +193,9 @@ def format_epics_children_tree(project_key: str, epics: List[Dict[str, Any]]) ->
         e_status = epic.get("status", "")
         e_url = epic.get("url", "")
         e_assignee = epic.get("assignee", "Unassigned")
+
+        # Add blank line before each epic for better readability
+        lines.append("")
         lines.append(f"[{e_key}]({e_url}) — {e_summary} [{e_status}] — Assignee: {e_assignee}")
 
         children = epic.get("children", []) or []
@@ -205,11 +208,10 @@ def format_epics_children_tree(project_key: str, epics: List[Dict[str, Any]]) ->
                 c_url = child.get("url", "")
                 c_assignee = child.get("assignee", "Unassigned")
                 lines.append(
-                    f"{connector} [{c_key}]({c_url}) — {c_summary} [{c_status}] — Assignee: {c_assignee}"
+                    f"{connector} {c_key} — {c_summary} [{c_status}] — Assignee: {c_assignee}"
                 )
         else:
             lines.append("└── (no children yet)")
-        lines.append("")
 
     return "\n".join(lines)
 
