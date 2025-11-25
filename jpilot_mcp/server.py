@@ -12,6 +12,7 @@ from .core import (
     create_jira_client,
     list_projects,
     get_issue_types,
+    get_project_components,
     list_issues,
     get_issue,
     get_transitions,
@@ -107,6 +108,39 @@ def get_jira_issue_types(project_key: str | None = None) -> dict[str, Any]:
     client = get_client()
     issue_types = get_issue_types(client, project_key)
     return {"issue_types": issue_types, "count": len(issue_types), "project": project_key}
+
+
+@mcp.tool()
+def get_jira_project_components(project_key: str | None = None) -> dict[str, Any]:
+    """Get available components for a Jira project.
+
+    Components are used to categorize issues within a project (e.g., 'Program/Project', 'Infrastructure', 'Documentation').
+    This tool helps you discover what components are available before creating issues.
+
+    Args:
+        project_key: Project key (e.g., 'PROJ'). If not provided, uses JIRA_DEFAULT_PROJECT from config.
+
+    Returns:
+        Dictionary with 'components' key containing list of all available components with id, name, and description
+
+    Example:
+        get_jira_project_components('TSSE')
+        # Returns: {"components": [{"id": "10001", "name": "Program/Project", "description": "..."}], ...}
+    """
+    # Use default project if not specified
+    if not project_key:
+        from .config import get_jira_config
+        config = get_jira_config()
+        if not config.default_project:
+            raise ValueError(
+                "No project_key provided and no JIRA_DEFAULT_PROJECT configured. "
+                "Please either specify project_key or set JIRA_DEFAULT_PROJECT environment variable."
+            )
+        project_key = config.default_project
+
+    client = get_client()
+    components = get_project_components(client, project_key)
+    return {"components": components, "count": len(components), "project": project_key}
 
 
 @mcp.tool()

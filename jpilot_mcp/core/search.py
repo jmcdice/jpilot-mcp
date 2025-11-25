@@ -162,6 +162,21 @@ def get_issue(client: JiraClient, issue_key: str) -> Dict[str, Any]:
         # Extract description using ADF parser
         description = extract_text_from_jira_field(issue.fields.description) if issue.fields.description else ""
 
+        # Get components
+        components = []
+        if hasattr(issue.fields, "components") and issue.fields.components:
+            components = [comp.name for comp in issue.fields.components]
+
+        # Get labels
+        labels = []
+        if hasattr(issue.fields, "labels") and issue.fields.labels:
+            labels = issue.fields.labels
+
+        # Get due date
+        duedate = None
+        if hasattr(issue.fields, "duedate") and issue.fields.duedate:
+            duedate = issue.fields.duedate
+
         return {
             "key": issue.key,
             "summary": issue.fields.summary,
@@ -171,6 +186,9 @@ def get_issue(client: JiraClient, issue_key: str) -> Dict[str, Any]:
             "assignee": issue.fields.assignee.displayName if issue.fields.assignee else "Unassigned",
             "reporter": issue.fields.reporter.displayName if issue.fields.reporter else "Unknown",
             "priority": issue.fields.priority.name if hasattr(issue.fields, "priority") and issue.fields.priority else "None",
+            "components": components,
+            "labels": labels,
+            "duedate": duedate,
             "created": issue.fields.created,
             "updated": issue.fields.updated,
             "url": f"{client.config.server}/browse/{issue.key}",
