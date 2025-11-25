@@ -327,12 +327,16 @@ def create_jira_epic(
 ) -> dict[str, Any]:
     """Create a new Epic in Jira.
 
+    **Note:** Different Jira projects may require different fields. If creation fails with
+    "Field X is required", provide that field. Use get_jira_project_components() to discover
+    available component names for your project.
+
     Args:
-        summary: Epic summary/title
+        summary: Epic summary/title (REQUIRED)
         project_key: Project key (e.g., 'PROJ'). If not provided, uses JIRA_DEFAULT_PROJECT from config.
         description: Optional epic description (markdown supported)
         assignee: Optional assignee (display name, email, or account ID)
-        components: Optional list of component names (e.g., ['Program/Project'])
+        components: Optional list of component names. Use get_jira_project_components() to see available options.
         duedate: Optional due date in YYYY-MM-DD format (e.g., '2026-03-31')
         labels: Optional list of labels/tags (e.g., ['automation', 'rfp'])
         priority: Optional priority (e.g., 'High', 'Medium', 'Low')
@@ -341,19 +345,22 @@ def create_jira_epic(
         Created epic details with key and URL
 
     Examples:
-        # Minimal epic
+        # Minimal epic (works if project has no required fields)
         create_jira_epic(summary="New Feature")
 
-        # Epic with all common fields
+        # Epic with commonly required fields
         create_jira_epic(
             summary="Automated RFP Response System",
             description="Build an end-to-end automated system...",
             assignee="joey.mcdonald@example.com",
-            components=["Program/Project"],
+            components=["Program/Project"],  # Check available components first!
             duedate="2026-03-31",
-            labels=["automation", "rfp"],
             priority="High"
         )
+
+        # Discover available components first
+        # components = get_jira_project_components('TSSE')
+        # Then use exact component name from the list
     """
     # Use default project if not specified
     if not project_key:
