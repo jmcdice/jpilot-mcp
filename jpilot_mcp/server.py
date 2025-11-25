@@ -161,31 +161,35 @@ def get_jira_project_tree(project_key: str | None = None) -> dict[str, Any]:
     - "Show project tree CIT"
     - "Epic story tree for CIT"
 
-    Output format structure (enforce this when displaying):
+    **CRITICAL DISPLAY INSTRUCTIONS:**
+    - ALWAYS display the COMPLETE 'tree' field from the response
+    - DO NOT truncate, summarize, or sample the tree output
+    - DO NOT add summaries or additional commentary unless explicitly requested
+    - The user wants to see ALL epics and ALL children every time
+    - Simply output the entire 'tree' string as-is
+
+    Output format structure:
     - Header: "● PROJECT: Epics → Children (tree)" (or "Stories" or "Tasks" if only one type)
-    - Blank line
+    - Blank line before each epic
     - Epic line: [KEY](url) — Summary [Status] — Assignee: Name
     - Child lines with tree connectors (├── or └──)
-    - Blank line after each epic's children
-    - Next epic...
+    - Repeat for ALL epics
 
     Example:
         ● CIT: Epics → Stories (tree)
 
         [CIT-10](url) — Epic Title [In Progress] — Assignee: John Doe
-        ├── [CIT-3](url) — Story 1 [Done] — Assignee: Jane
-        └── [CIT-5](url) — Story 2 [Done] — Assignee: Bob
-
-        ● TSSE: Epics → Tasks (tree)
+        ├── CIT-3 — Story 1 [Done] — Assignee: Jane
+        └── CIT-5 — Story 2 [Done] — Assignee: Bob
 
         [TSSE-891](url) — WizSig Platform Development [In Progress] — Assignee: Joey
-        ├── [TSSE-100](url) — Setup deployment [Done] — Assignee: Joey
-        └── [TSSE-101](url) — Configure CI/CD [In Progress] — Assignee: Joey
+        ├── TSSE-100 — Setup deployment [Done] — Assignee: Joey
+        └── TSSE-101 — Configure CI/CD [In Progress] — Assignee: Joey
 
     Behavior:
-    - Do not ask follow-up questions or propose extra options (e.g., exporting to CSV or filtering) unless explicitly requested.
-    - Preserve emojis from Jira issue titles.
-    - Use Markdown links for issue keys.
+    - Display the complete tree without truncation
+    - Do not ask follow-up questions or propose extra options unless explicitly requested
+    - Preserve emojis from Jira issue titles
 
     Args:
         project_key: Project key (e.g., 'PROJ'). If not provided, uses JIRA_DEFAULT_PROJECT from config.
@@ -230,7 +234,8 @@ def jira_tree(project_key: str | None = None) -> dict[str, Any]:
     - "Jira tree for CIT"
     - "Project tree CIT"
 
-    Behavior: no emojis; do not propose exporting/filtering unless explicitly asked.
+    **CRITICAL:** ALWAYS display the COMPLETE 'tree' field from the response.
+    DO NOT truncate or summarize. The user wants to see ALL epics and children.
     """
     return get_jira_project_tree(project_key)
 
