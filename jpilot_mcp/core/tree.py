@@ -70,19 +70,20 @@ def get_epics_and_children(
     Returns a list of epics keeping board/rank order, each with `children`.
     Each epic dict has: key, summary, status, url, assignee, children: List[dict].
     """
-    # Fetch all epics
+    # Fetch all epics (use max_results=None to auto-paginate and get ALL epics)
     epics = search_issues(
         client,
         jql=f'project = "{project_key}" AND issuetype = "Epic" ORDER BY rank ASC',
-        max_results=1000,
+        max_results=None,
     )
 
     # Fetch all potential child issues (non-Epic, non-Subtask)
     # This auto-detects whether the project uses Story, Task, or other types
+    # Use max_results=None to auto-paginate and get ALL children
     children = search_issues(
         client,
         jql=f'project = "{project_key}" AND issuetype != "Epic" AND issuetype != "Subtask" AND issuetype != "Sub-task" ORDER BY rank ASC',
-        max_results=2000,
+        max_results=None,
     )
 
     # Build epic map with empty children lists

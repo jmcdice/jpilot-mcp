@@ -2,7 +2,7 @@
 
 from .client import JiraClient, JiraConnectionError, JiraError, create_jira_client
 from .projects import list_projects, get_project, get_issue_types, get_project_components
-from .search import search_issues, list_issues, get_issue, get_transitions
+from .search import search_issues, list_issues, get_issue, get_transitions, get_epic_progress
 from .adf_parser import adf_to_text, extract_text_from_jira_field
 from .tree import (
     get_epics_and_children,
@@ -19,6 +19,7 @@ from .issues import (
     create_subtask,
     add_comment,
     update_issue,
+    update_epic_progress,
     transition_issue,
 )
 from .models import (
@@ -64,6 +65,7 @@ __all__ = [
     "list_issues",
     "get_issue",
     "get_transitions",
+    "get_epic_progress",
     # ADF Parser
     "adf_to_text",
     "extract_text_from_jira_field",
@@ -81,6 +83,7 @@ __all__ = [
     "create_subtask",
     "add_comment",
     "update_issue",
+    "update_epic_progress",
     "transition_issue",
     # Models - Project
     "Project",

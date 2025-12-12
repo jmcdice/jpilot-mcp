@@ -16,12 +16,14 @@ from .core import (
     list_issues,
     get_issue,
     get_transitions,
+    get_epic_progress,
     create_epic,
     create_story,
     create_task,
     create_subtask,
     add_comment,
     update_issue,
+    update_epic_progress,
     transition_issue,
     get_epics_and_children,
     format_epics_children_tree,
@@ -577,6 +579,78 @@ def transition_jira_issue(issue_key: str, transition_name: str) -> dict[str, Any
     """
     client = get_client()
     return transition_issue(client, issue_key, transition_name)
+
+
+# ============================================================================
+# Weekly Progress Report Tools
+# ============================================================================
+
+
+@mcp.tool()
+def get_jira_epic_progress(issue_key: str) -> dict[str, Any]:
+    """Get weekly progress report fields from a Jira epic.
+
+    Retrieves the custom fields used for weekly status reporting:
+    - Health Status: Overall health (On Track, At Risk, Behind)
+    - Completion Percentage: Progress as decimal (0.0-1.0)
+    - Progress Update: Text description of recent progress
+    - Risks/Blockers: Text description of risks or blockers
+    - Decision Needed: Whether a decision is required (Yes/No)
+    - Decision Detail: Details about the decision needed
+    - Decision Maker(s): Users who need to make the decision
+
+    Args:
+        issue_key: Issue key (e.g., 'TSSE-123')
+
+    Returns:
+        Dictionary with issue info and progress field values
+    """
+    client = get_client()
+    return get_epic_progress(client, issue_key)
+
+
+@mcp.tool()
+def update_jira_epic_progress(
+    issue_key: str,
+    health_status: str | None = None,
+    completion_percentage: float | None = None,
+    progress_update: str | None = None,
+    risks_blockers: str | None = None,
+    decision_needed: str | None = None,
+    decision_detail: str | None = None,
+) -> dict[str, Any]:
+    """Update weekly progress report fields on a Jira epic.
+
+    Use this tool to update the fields for weekly status reporting on epics.
+
+    Args:
+        issue_key: Issue key (e.g., 'TSSE-123')
+        health_status: Health indicator - must be "On Track", "At Risk", or "Behind"
+        completion_percentage: Progress as decimal (0.0 to 1.0, e.g., 0.5 for 50%)
+        progress_update: Text describing recent progress (markdown supported)
+        risks_blockers: Text describing risks or blockers (markdown supported)
+        decision_needed: Whether decision is needed - must be "Yes" or "No"
+        decision_detail: Details about the decision needed (single line text)
+
+    Returns:
+        Dictionary with updated field values and issue URL
+
+    Examples:
+        - Set health to on track: update_jira_epic_progress('TSSE-123', health_status='On Track')
+        - Update progress to 50%: update_jira_epic_progress('TSSE-123', completion_percentage=0.5)
+        - Full update: update_jira_epic_progress('TSSE-123', health_status='On Track', completion_percentage=0.75, progress_update='Completed milestone 3')
+    """
+    client = get_client()
+    return update_epic_progress(
+        client,
+        issue_key,
+        health_status=health_status,
+        completion_percentage=completion_percentage,
+        progress_update=progress_update,
+        risks_blockers=risks_blockers,
+        decision_needed=decision_needed,
+        decision_detail=decision_detail,
+    )
 
 
 # ============================================================================

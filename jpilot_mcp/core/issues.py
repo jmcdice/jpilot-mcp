@@ -1,9 +1,27 @@
 """Issue creation and management operations."""
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from jira.exceptions import JIRAError
 
 from .client import JiraClient, JiraError
+
+
+# =============================================================================
+# Weekly Progress Report Custom Field IDs (TSSE Project)
+# =============================================================================
+# These fields are used for weekly status reporting on Epics
+
+PROGRESS_FIELD_HEALTH_STATUS = "customfield_15117"  # Dropdown: "On Track", "At Risk", "Behind"
+PROGRESS_FIELD_COMPLETION_PCT = "customfield_15116"  # Number (float): 0.0 to 1.0
+PROGRESS_FIELD_PROGRESS_UPDATE = "customfield_15112"  # Text area (ADF format)
+PROGRESS_FIELD_RISKS_BLOCKERS = "customfield_15115"  # Text area (ADF format)
+PROGRESS_FIELD_DECISION_NEEDED = "customfield_15111"  # Dropdown: "Yes", "No"
+PROGRESS_FIELD_DECISION_DETAIL = "customfield_15114"  # Single-line text
+PROGRESS_FIELD_DECISION_MAKERS = "customfield_15113"  # Multi-user picker (array)
+
+# Valid values for dropdown fields
+HEALTH_STATUS_VALUES = ["On Track", "At Risk", "Behind"]
+DECISION_NEEDED_VALUES = ["Yes", "No"]
 
 
 def _markdown_to_adf(text: str) -> Dict[str, Any]:
@@ -697,3 +715,137 @@ def transition_issue(
     except JiraError:
         raise
 
+
+def update_epic_progress(
+    client: JiraClient,
+    issue_key: str,
+    health_status: Optional[str] = None,
+    completion_percentage: Optional[float] = None,
+    progress_update: Optional[str] = None,
+    risks_blockers: Optional[str] = None,
+    decision_needed: Optional[str] = None,
+    decision_detail: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Update weekly progress report fields on a Jira epic.
+
+    This function updates the custom fields used for weekly status reporting:
+    - Health Status: Overall health indicator (On Track, At Risk, Behind)
+    - Completion Percentage: Progress as a decimal (0.0 to 1.0)
+    - Progress Update: Text description of recent progress
+    - Risks/Blockers: Text description of risks or blockers
+    - Decision Needed: Whether a decision is required (Yes/No)
+    - Decision Detail: Details about the decision needed
+
+    Args:
+        client: Jira client instance
+        issue_key: Issue key (e.g., 'TSSE-123')
+        health_status: Health indicator - must be "On Track", "At Risk", or "Behind"
+        completion_percentage: Progress as decimal (0.0 to 1.0, e.g., 0.5 for 50%)
+        progress_update: Text describing recent progress (markdown supported)
+        risks_blockers: Text describing risks or blockers (markdown supported)
+        decision_needed: Whether decision is needed - must be "Yes" or "No"
+        decision_detail: Details about the decision needed (single line text)
+
+    Returns:
+        Dictionary with updated field values and issue URL
+
+    Raises:
+        JiraError: If update fails or invalid values provided
+    """
+    try:
+        # Validate health_status if provided
+        if health_status is not None:
+            if health_status not in HEALTH_STATUS_VALUES:
+                raise JiraError(
+                    f"Invalid health_status '{health_status}'. "
+                    f"Must be one of: {', '.join(HEALTH_STATUS_VALUES)}"
+                )
+
+        # Validate completion_percentage if provided
+        if completion_percentage is not None:
+            if not (0.0 <= completion_percentage <= 1.0):
+                raise JiraError(
+                    f"Invalid completion_percentage '{completion_percentage}'. "
+                    "Must be between 0.0 and 1.0 (e.g., 0.5 for 50%)"
+                )
+
+        # Validate decision_needed if provided
+        if decision_needed is not None:
+            if decision_needed not in DECISION_NEEDED_VALUES:
+                raise JiraError(
+                    f"Invalid decision_needed '{decision_needed}'. "
+                    f"Must be one of: {', '.join(DECISION_NEEDED_VALUES)}"
+                )
+
+        # Build update fields
+        fields: Dict[str, Any] = {}
+
+        if health_status is not None:
+            fields[PROGRESS_FIELD_HEALTH_STATUS] = {"value": health_status}
+
+        if completion_percentage is not None:
+            fields[PROGRESS_FIELD_COMPLETION_PCT] = completion_percentage
+
+        if progress_update is not None:
+            fields[PROGRESS_FIELD_PROGRESS_UPDATE] = _markdown_to_adf(progress_update)
+
+        if risks_blockers is not None:
+            fields[PROGRESS_FIELD_RISKS_BLOCKERS] = _markdown_to_adf(risks_blockers)
+
+        if decision_needed is not None:
+            fields[PROGRESS_FIELD_DECISION_NEEDED] = {"value": decision_needed}
+
+        if decision_detail is not None:
+            fields[PROGRESS_FIELD_DECISION_DETAIL] = decision_detail
+
+        if not fields:
+            raise JiraError("No fields provided to update")
+
+        # Update the issue
+        issue = client.client.issue(issue_key)
+        issue.update(fields=fields)
+
+        # Fetch updated issue to return current state
+        updated_issue = client.client.issue(issue_key)
+
+        # Build response with current progress field values
+        result: Dict[str, Any] = {
+            "key": updated_issue.key,
+            "summary": updated_issue.fields.summary,
+            "url": f"{client.config.server}/browse/{updated_issue.key}",
+            "progress_fields": {},
+        }
+
+        # Extract current values of progress fields
+        progress_data = result["progress_fields"]
+
+        health = getattr(updated_issue.fields, PROGRESS_FIELD_HEALTH_STATUS, None)
+        if health:
+            progress_data["health_status"] = health.value if hasattr(health, "value") else str(health)
+
+        completion = getattr(updated_issue.fields, PROGRESS_FIELD_COMPLETION_PCT, None)
+        if completion is not None:
+            progress_data["completion_percentage"] = completion
+            progress_data["completion_percentage_display"] = f"{int(completion * 100)}%"
+
+        decision = getattr(updated_issue.fields, PROGRESS_FIELD_DECISION_NEEDED, None)
+        if decision:
+            progress_data["decision_needed"] = decision.value if hasattr(decision, "value") else str(decision)
+
+        detail = getattr(updated_issue.fields, PROGRESS_FIELD_DECISION_DETAIL, None)
+        if detail:
+            progress_data["decision_detail"] = detail
+
+        # Note: progress_update and risks_blockers are ADF and harder to extract cleanly
+        # They're confirmed updated if we got here without error
+
+        return result
+
+    except JIRAError as e:
+        if e.status_code == 404:
+            raise JiraError(f"Issue '{issue_key}' not found") from e
+        raise JiraError(f"Failed to update progress fields for '{issue_key}': {e.text}") from e
+    except JiraError:
+        raise
+    except Exception as e:
+        raise JiraError(f"Failed to update progress fields for '{issue_key}': {str(e)}") from e
