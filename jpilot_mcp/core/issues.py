@@ -37,6 +37,7 @@ def _markdown_to_adf(text: str) -> Dict[str, Any]:
     - Ordered lists (1. 2. etc.)
     - Links ([text](url))
     - Horizontal rules (---)
+    - Tables (| col1 | col2 | format)
 
     Args:
         text: Markdown text
@@ -100,6 +101,60 @@ def _markdown_to_adf(text: str) -> Dict[str, Any]:
         if re.match(r'^-{3,}$', line.strip()):
             content.append({"type": "rule"})
             i += 1
+            continue
+
+        # Markdown table (| col1 | col2 |)
+        if re.match(r'^\|.+\|$', line.strip()):
+            table_rows = []
+            is_header = True
+            while i < len(lines) and re.match(r'^\|.+\|$', lines[i].strip()):
+                row_line = lines[i].strip()
+                # Skip separator row (|---|---|) - includes | in pattern for multi-column tables
+                if re.match(r'^\|[\s\-:\|]+\|$', row_line):
+                    i += 1
+                    continue
+                # Parse cells
+                cells = [cell.strip() for cell in row_line.split('|')[1:-1]]
+                if is_header:
+                    # Header row
+                    table_rows.append({
+                        "type": "tableRow",
+                        "content": [
+                            {
+                                "type": "tableHeader",
+                                "attrs": {},
+                                "content": [{
+                                    "type": "paragraph",
+                                    "content": _parse_inline_markdown(cell)
+                                }]
+                            }
+                            for cell in cells
+                        ]
+                    })
+                    is_header = False
+                else:
+                    # Data row
+                    table_rows.append({
+                        "type": "tableRow",
+                        "content": [
+                            {
+                                "type": "tableCell",
+                                "attrs": {},
+                                "content": [{
+                                    "type": "paragraph",
+                                    "content": _parse_inline_markdown(cell)
+                                }]
+                            }
+                            for cell in cells
+                        ]
+                    })
+                i += 1
+            if table_rows:
+                content.append({
+                    "type": "table",
+                    "attrs": {"isNumberColumnEnabled": False, "layout": "default"},
+                    "content": table_rows
+                })
             continue
 
         # Unordered list
